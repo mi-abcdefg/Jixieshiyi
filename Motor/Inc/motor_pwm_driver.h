@@ -6,7 +6,7 @@
 #define CRTC2026_ROBOTA_MOTOR_PWM_DRIVER_H
 
 #pragma once
-#include "stm32f1xx_hal_tim.h"
+#include "stm32f1xx_hal.h"
 #include "tim.h"
 
 #define TIM_FL_1 &htim2
