@@ -33,14 +33,18 @@ enable_language(C ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
-        Mecanum/Inc/mecanum_kinematic.h
-        Mecanum/Src/mecanum_kinematic.cpp
+        Chasis/Inc/mecanum_kinematic.h
+        Chasis/Src/mecanum_kinematic.cpp
         Motor/Inc/motor_pwm_driver.h
         Motor/Src/motor_pwm_driver.cpp
         Servo/Inc/servo_driver.h
         Servo/Src/servo_driver.cpp
         PID/Inc/speed_pid.h
-        PID/Src/speed_pid.cpp)
+        PID/Src/speed_pid.cpp
+        Chasis/Inc/chasis_control.h
+        Chasis/Src/chasis_control.cpp
+        PS2/Inc/ps2_driver.h
+        PS2/Src/ps2_driver.cpp)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -57,7 +61,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/Mecanum/Inc
+    ${CMAKE_SOURCE_DIR}/Chasis/Inc
+    ${CMAKE_SOURCE_DIR}/Motor/Inc
+    ${CMAKE_SOURCE_DIR}/Servo/Inc
+    ${CMAKE_SOURCE_DIR}/PID/Inc
+    ${CMAKE_SOURCE_DIR}/PS2/Inc
 )
 
 # Add project symbols (macros)
