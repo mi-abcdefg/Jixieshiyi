@@ -44,7 +44,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Chasis/Inc/chasis_control.h
         Chasis/Src/chasis_control.cpp
         PS2/Inc/ps2_driver.h
-        PS2/Src/ps2_driver.cpp)
+        PS2/Src/ps2_driver.cpp
+        PS2/Inc/ps2_decode.h
+        PS2/Src/ps2_decode.cpp)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

@@ -14,11 +14,11 @@
 extern "C" {
 #endif
 
-// 车体运动学参数，单位：m、m/s、rad/s
-#define MECANUM_MAX_SPEED_MPS             2.0f
-#define MECANUM_MAX_YAW_RATE_RAD_S        3.0f
+// 车体运动学参数
+#define MECANUM_MAX_SPEED                 2.0f
 #define MECANUM_CHASSIS_LENGTH_M          0.45f
 #define MECANUM_CHASSIS_WIDTH_M           0.35f
+#define MECANUM_OMEGA_SCALE               0.5f
 
 // 轮子编号约定：FL=前左、FR=前右、RL=后左、RR=后右
 #define MECANUM_WHEEL_FL                  0U
@@ -26,12 +26,12 @@ extern "C" {
 #define MECANUM_WHEEL_RL                  2U
 #define MECANUM_WHEEL_RR                  3U
 
-// 车体输入：vx_mps 为前进速度，vy_mps 为横向速度，omega_rad_s 为角速度
-// 输出：wheel_speeds_mps[4] 按 [FL, FR, RL, RR] 顺序返回四个轮子的线速度（m/s）
-void mecanum_get_wheel_speeds(float vx_mps,
-                              float vy_mps,
-                              float omega_rad_s,
-                              float wheel_speeds_mps[4]);
+// 车体输入：vx 为前进速度，vy 为横向速度，omega 为角速度
+// 输出：wheel_speeds[4] 按 [FL, FR, RL, RR] 顺序返回四个轮子的线速度（m/s）
+void mecanum_get_wheel_speeds(float vx,
+                              float vy,
+                              float omega,
+                              float wheel_speeds[4]);
 
 #ifdef __cplusplus
 }
