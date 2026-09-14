@@ -27,7 +27,6 @@
 #define CH_BR_2 TIM_CHANNEL_4
 #define speed_scale 10
 
-
 #ifdef __cplusplus
 class Motor {
 public:
@@ -37,11 +36,12 @@ public:
 };
 #endif
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
     void motor_set_wheel_speed(int fl_speed, int fr_speed, int bl_speed, int br_speed);
+
 #ifdef __cplusplus
 }
 #endif

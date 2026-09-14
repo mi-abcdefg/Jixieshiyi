@@ -20,18 +20,18 @@ void mecanum_get_wheel_speeds(float vx,
 
     // 麦克纳姆轮的运动学关系：
     // 以车体坐标系 x 向前，y 向左，z 向上为正，角速度 omega 为绕 z 轴旋转。
-    // 轮子编号顺序按照 [FL, FR, RL, RR] 组织。
+    // 轮子编号顺序按照 [FL, FR, BL, BR] 组织。
     const float k = MECANUM_OMEGA_SCALE * (MECANUM_CHASSIS_LENGTH_M + MECANUM_CHASSIS_WIDTH_M);
 
     wheel_speeds[MECANUM_WHEEL_FL] = vx + vy + k * omega;
     wheel_speeds[MECANUM_WHEEL_FR] = vx - vy - k * omega;
-    wheel_speeds[MECANUM_WHEEL_RL] = vx - vy + k * omega;
-    wheel_speeds[MECANUM_WHEEL_RR] = vx + vy - k * omega;
+    wheel_speeds[MECANUM_WHEEL_BL] = vx - vy + k * omega;
+    wheel_speeds[MECANUM_WHEEL_BR] = vx + vy - k * omega;
 
 
     // 速度归一化
     float max_speed = std::max(std::max(std::max(wheel_speeds[MECANUM_WHEEL_FL], wheel_speeds[MECANUM_WHEEL_FR]),
-    wheel_speeds[MECANUM_WHEEL_RL]), wheel_speeds[MECANUM_WHEEL_RR]);
+    wheel_speeds[MECANUM_WHEEL_BL]), wheel_speeds[MECANUM_WHEEL_BR]);
     if (max_speed > MECANUM_MAX_SPEED)
     {
 

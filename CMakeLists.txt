@@ -41,12 +41,15 @@ add_executable(${CMAKE_PROJECT_NAME}
         Servo/Src/servo_driver.cpp
         PID/Inc/speed_pid.h
         PID/Src/speed_pid.cpp
-        Chasis/Inc/chasis_control.h
-        Chasis/Src/chasis_control.cpp
+        Task/Inc/chasis_control_task.h
+        Task/Src/chasis_control_task.cpp
         PS2/Inc/ps2_driver.h
         PS2/Src/ps2_driver.cpp
         PS2/Inc/ps2_decode.h
-        PS2/Src/ps2_decode.cpp)
+        PS2/Src/ps2_decode.cpp
+        Task/TaskBase.h
+        Task/Inc/remote_comm_task.h
+        Task/Src/remote_comm_task.cpp)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -68,6 +71,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Servo/Inc
     ${CMAKE_SOURCE_DIR}/PID/Inc
     ${CMAKE_SOURCE_DIR}/PS2/Inc
+    ${CMAKE_SOURCE_DIR}/Task/Inc
+    ${CMAKE_SOURCE_DIR}/Task
 )
 
 # Add project symbols (macros)
