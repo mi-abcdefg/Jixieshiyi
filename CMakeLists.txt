@@ -39,8 +39,6 @@ add_executable(${CMAKE_PROJECT_NAME}
         Motor/Src/motor_pwm_driver.cpp
         Servo/Inc/servo_driver.h
         Servo/Src/servo_driver.cpp
-        PID/Inc/speed_pid.h
-        PID/Src/speed_pid.cpp
         Task/Inc/chasis_control_task.h
         Task/Src/chasis_control_task.cpp
         PS2/Inc/ps2_driver.h
@@ -69,7 +67,6 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Chasis/Inc
     ${CMAKE_SOURCE_DIR}/Motor/Inc
     ${CMAKE_SOURCE_DIR}/Servo/Inc
-    ${CMAKE_SOURCE_DIR}/PID/Inc
     ${CMAKE_SOURCE_DIR}/PS2/Inc
     ${CMAKE_SOURCE_DIR}/Task/Inc
     ${CMAKE_SOURCE_DIR}/Task

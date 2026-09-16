@@ -1,8 +1,0 @@
-//
-// Created by MI on 2026/9/13.
-//
-
-#ifndef CRTC2026_ROBOTA_SPEED_PID_H
-#define CRTC2026_ROBOTA_SPEED_PID_H
-
-#endif //CRTC2026_ROBOTA_SPEED_PID_H
