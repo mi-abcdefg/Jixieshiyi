@@ -15,6 +15,7 @@ extern "C" {
 
     RemoteCommTask remote_comm_task;
     void remote_comm_task_init() {
+        PS2_Init();
         remote_comm_task.start("RemoteCommTask", 256, osPriorityNormal);
     }
 

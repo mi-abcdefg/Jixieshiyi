@@ -50,6 +50,9 @@ void Motor::set_wheel_speed(int fl_speed, int fr_speed, int bl_speed, int br_spe
 
 extern "C" {
     Motor motor1;
+    void motor_init() {
+        motor1.init();
+    }
     void motor_set_wheel_speed(int fl_speed, int fr_speed, int bl_speed, int br_speed) {
         motor1.set_wheel_speed(fl_speed, fr_speed, bl_speed, br_speed);
     }

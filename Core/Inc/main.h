@@ -57,8 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define PS2_CS_Pin GPIO_PIN_6
-#define PS2_CS_GPIO_Port GPIOB
+#define PS2_CS_Pin GPIO_PIN_15
+#define PS2_CS_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

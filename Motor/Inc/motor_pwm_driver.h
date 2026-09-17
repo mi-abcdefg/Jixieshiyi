@@ -9,6 +9,7 @@
 #include "stm32f1xx_hal.h"
 #include "tim.h"
 
+// 轮子PWM定时器和通道定义
 #define TIM_FL_1 &htim2
 #define TIM_FL_2 &htim2
 #define TIM_FR_1 &htim2
@@ -40,6 +41,7 @@ public:
 extern "C" {
 #endif
 
+    void motor_init();
     void motor_set_wheel_speed(int fl_speed, int fr_speed, int bl_speed, int br_speed);
 
 #ifdef __cplusplus

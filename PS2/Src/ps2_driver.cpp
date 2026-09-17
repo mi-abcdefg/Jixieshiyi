@@ -13,8 +13,8 @@
 #define CMD_PORT    GPIOB
 #define CMD_PIN     GPIO_PIN_5
 
-#define CS_PORT     GPIOB
-#define CS_PIN      GPIO_PIN_6
+#define CS_PORT     GPIOA
+#define CS_PIN      GPIO_PIN_15
 
 #define CLK_PORT    GPIOB
 #define CLK_PIN     GPIO_PIN_3

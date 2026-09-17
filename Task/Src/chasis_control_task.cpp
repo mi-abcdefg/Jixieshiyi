@@ -36,6 +36,7 @@ extern "C" {
     ChasisControlTask chasis_control_task;
 
     void chasis_control_task_init() {
+        motor_init();
         chasis_control_task.start("ChasisControlTask", 512, osPriorityNormal);
     }
 }
