@@ -52,7 +52,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         false
     },
 
-    /* 肩关节：第一段连杆，臂长 11cm（PB7，SG90） */
+    /* 肩关节：第一段连杆，臂长 11cm（PB7，SG90）。实测安装方向相反，reversed 翻转 */
     {
         TIM_CHANNEL_2,
         500,
@@ -60,14 +60,15 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         0.0f,
         180.0f,
         90.0f,
-        false
+        true
     },
 
     /* 肘关节：第二段连杆，臂长 8.5cm（PB8，SG90）
      * 角度域用负值 [-180°, 0°]：arm_ik 的"肘上"解给第二连杆的相对角恒为负
      * （范围 [-180°, 0]）。若按 [0°, 180°] 限幅，负解会被硬夹到 0°——
      * 表现为推杆时舵机猛摆向电气极限、松杆再推又从被夹过的错误姿态重新起步。
-     * 初始角 -90° 即该角度域的中位（脉宽 1500µs，与其它舵机的 90° 等价）。 */
+     * 初始角 -90° 即该角度域的中位（脉宽 1500µs，与其它舵机的 90° 等价）。
+     * 实测安装方向相反，reversed 翻转（只镜像物理方向，不改变软件角度约定）。 */
     {
         TIM_CHANNEL_3,
         500,
@@ -75,7 +76,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         -180.0f,
         0.0f,
         -90.0f,
-        false
+        true
     },
 
     /* 夹爪（PB6，SG90） */

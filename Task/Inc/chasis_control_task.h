@@ -18,6 +18,11 @@
  */
 #define CHASIS_SLOW_MODE_SCALE    0.8f
 
+/* ------------------------ 原地旋转方向翻转 ------------------------
+ * 推右摇杆的旋转方向与整车实际转向相反时置 1（B 车实测需要）。
+ * 只取反底盘旋转指令 omega，不影响 vx/vy，也不影响机械臂的底座自转。 */
+#define CHASIS_OMEGA_INVERT       1
+
 #ifdef __cplusplus
 class ChasisControlTask : public TaskBase {
 public:

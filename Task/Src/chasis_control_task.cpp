@@ -52,6 +52,11 @@ void ChasisControlTask::run() {
         float vy = (left_analog[0] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 左/右速度
         float omega = (right_analog[0] - 128) / 128.0f * MECANUM_MAX_OMEGA_RADPS; // 旋转角速度
 
+        // 原地旋转方向标定（B 车实测反向）：只翻转底盘旋转，见 chasis_control_task.h
+        if (CHASIS_OMEGA_INVERT) {
+            omega = -omega;
+        }
+
         // ---------------- 模式门控 ----------------
         // 操作对象切到机械臂时，轮速指令一律清零（注意仍在解算后正常下发 0，
         // 让 Motor 内部状态保持一致）。切走瞬间即使摇杆还推着，车也立刻停；
