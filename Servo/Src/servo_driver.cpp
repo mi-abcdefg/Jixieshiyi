@@ -28,17 +28,22 @@ typedef struct
  * 物理布局从下往上：PB6 底座 MG995（绕 Z）→ PB7 肩 SG90（11cm 臂）
  * → PB8 肘 SG90（8.5cm 臂）→ PB9 夹爪 SG90。
  *
- * 脉宽当前统一 1000~2000µs 保守占位（SG90/MG995 标称全范围是
- * 500~2500µs）。等实物标定确认各舵机机械限位后再放宽，避免上电
- * 就顶死。startup 角度同样是占位值。
+ * 脉宽范围按数据手册标称值统一 500~2500µs（MG995 标称 500~2500µs；
+ * SG90 要求标准 PWM：周期 20ms、高电平 0.5~2.5ms。TIM4 配置恰好是
+ * 50Hz/20ms，CCR 值即微秒数，无需改动）。
+ *
+ * 注意：电气范围 ≠ 机械安全范围。臂体连杆机构未必允许每个关节跑满
+ * 180°——若实物上某关节接近极限会顶死/堵转，把该舵机的
+ * min/max_pulse_us（或对应 min/max_angle_deg）向内收紧。
+ * startup 角度仍是占位值，待标定。
  */
 static const ServoConfig_t servo_config[SERVO_COUNT] =
 {
     /* 底座：绕 Z 轴旋转（PB6，MG995） */
     {
         TIM_CHANNEL_1,
-        1000,
-        2000,
+        500,
+        2500,
         0.0f,
         180.0f,
         0.0f,
@@ -48,8 +53,8 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
     /* 肩关节：第一段连杆，臂长 11cm（PB7，SG90） */
     {
         TIM_CHANNEL_2,
-        1000,
-        2000,
+        500,
+        2500,
         0.0f,
         180.0f,
         45.0f,
@@ -59,8 +64,8 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
     /* 肘关节：第二段连杆，臂长 8.5cm（PB8，SG90） */
     {
         TIM_CHANNEL_3,
-        1000,
-        2000,
+        500,
+        2500,
         0.0f,
         180.0f,
         135.0f,
@@ -70,8 +75,8 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
     /* 夹爪（PB9，SG90） */
     {
         TIM_CHANNEL_4,
-        1000,
-        2000,
+        500,
+        2500,
         0.0f,
         180.0f,
         45.0f,
