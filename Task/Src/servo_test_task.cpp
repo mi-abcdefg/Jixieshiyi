@@ -64,12 +64,15 @@ namespace {
         }
     }
 
-    /* 测一台：正转 SWING_DEG → 停 → 回初始位 */
+    /* 测一台：宽幅扫动 +45° → −45° → 回中位（全程 90°，肉眼无法认错）。
+     * 各舵机初始角都在自身角度域的正中，±45° 不会触及限幅。 */
     void test_one_servo(ServoId_t id) {
         float startup_deg = 0.0f;
         servo_get_commanded_angle(id, &startup_deg);
 
         move_slow(id, startup_deg + SERVO_TEST_SWING_DEG);
+        osDelay(SERVO_TEST_HOLD_MS);
+        move_slow(id, startup_deg - SERVO_TEST_SWING_DEG);
         osDelay(SERVO_TEST_HOLD_MS);
         move_slow(id, startup_deg);
         osDelay(SERVO_TEST_BETWEEN_MS);

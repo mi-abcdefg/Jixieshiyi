@@ -87,14 +87,13 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
   remote_comm_task_init();
   chasis_control_task_init();
-  test_task_init();
-  arm_task_init();
-  /* 舵机逐台自检（ServoTestTask）平时不启动。下次标定舵机时再启用，
-   * 并同时注释掉上面两行（避免抢写舵机脉宽 / PC13 报数灯冲突）：
-   *   // test_task_init();
-   *   // arm_task_init();
-   *   servo_test_task_init();                                      */
-  // servo_test_task_init();
+  /* ====== 临时：舵机通道辨识模式（台架测试） ======
+   * ServoTestTask：灯闪 k 下 → 通道 k（PB6→PB9）宽幅扫动 ±45°，无限循环。
+   * TestTask / ArmTask 暂停：PC13 报数灯冲突 + 避免抢写舵机脉宽。
+   * 辨识完恢复：放开下面两行、注释掉 servo_test_task_init()。 */
+  // test_task_init();
+  // arm_task_init();
+  servo_test_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
