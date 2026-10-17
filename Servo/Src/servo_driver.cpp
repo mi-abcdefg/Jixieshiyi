@@ -23,24 +23,29 @@ typedef struct
 } ServoConfig_t;
 
 /**
- * @brief 四个舵机的配置表
+ * @brief 四个舵机的配置表（编号 → 通道/限幅，按实际接线排序）
  *
- * 当前参数只是初始占位值，实物到手后分别标定。
+ * 物理布局从下往上：PB6 底座 MG995（绕 Z）→ PB7 肩 SG90（11cm 臂）
+ * → PB8 肘 SG90（8.5cm 臂）→ PB9 夹爪 SG90。
+ *
+ * 脉宽当前统一 1000~2000µs 保守占位（SG90/MG995 标称全范围是
+ * 500~2500µs）。等实物标定确认各舵机机械限位后再放宽，避免上电
+ * 就顶死。startup 角度同样是占位值。
  */
 static const ServoConfig_t servo_config[SERVO_COUNT] =
 {
-    /* 舵机1：夹爪 */
+    /* 底座：绕 Z 轴旋转（PB6，MG995） */
     {
         TIM_CHANNEL_1,
         1000,
         2000,
         0.0f,
         180.0f,
-        45.0f,
+        0.0f,
         false
     },
 
-    /* 舵机2：第一段连杆 */
+    /* 肩关节：第一段连杆，臂长 11cm（PB7，SG90） */
     {
         TIM_CHANNEL_2,
         1000,
@@ -51,7 +56,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         false
     },
 
-    /* 舵机3：第二段连杆 */
+    /* 肘关节：第二段连杆，臂长 8.5cm（PB8，SG90） */
     {
         TIM_CHANNEL_3,
         1000,
@@ -62,14 +67,14 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         false
     },
 
-    /* 舵机4：Z 轴旋转（底座） */
+    /* 夹爪（PB9，SG90） */
     {
         TIM_CHANNEL_4,
         1000,
         2000,
         0.0f,
         180.0f,
-        0.0f,
+        45.0f,
         false
     }
 };

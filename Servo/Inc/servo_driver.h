@@ -18,14 +18,21 @@
 #include <stdbool.h>
 
 /* --------------------------- 舵机功能编号 ---------------------------
- * 编号与机械臂结构对应，上层（arm_control / arm_action / arm_manual）
- * 一律用编号而非定时器通道，硬件改动只落在本驱动内部。
+ * 编号按机械臂功能命名（与物理从下到上顺序无关），上层（arm_control /
+ * arm_action / arm_manual）一律用编号，编号→定时器通道的映射只存在于
+ * servo_driver.cpp 的配置表里。
+ *
+ * 实际硬件（从下往上，挖掘机构型）：
+ *   PB6/TIM4_CH1  底座 MG995 —— 整臂绕 Z 轴旋转（SERVO_BASE_Z）
+ *   PB7/TIM4_CH2  肩关节 SG90 —— 带 11cm 第一连杆（SERVO_LINK_1）
+ *   PB8/TIM4_CH3  肘关节 SG90 —— 带 8.5cm 第二连杆（SERVO_LINK_2）
+ *   PB9/TIM4_CH4  夹爪 SG90（SERVO_GRIPPER）
  * ------------------------------------------------------------------ */
 typedef enum {
-    SERVO_GRIPPER = 0,   // 舵机1：夹爪
-    SERVO_LINK_1,        // 舵机2：第一段连杆
-    SERVO_LINK_2,        // 舵机3：第二段连杆
-    SERVO_BASE_Z,        // 舵机4：绕 Z 轴旋转（底座）
+    SERVO_GRIPPER = 0,   // 夹爪（PB9，SG90）
+    SERVO_LINK_1,        // 第一段连杆 / 肩（PB7，SG90，臂长 11cm）
+    SERVO_LINK_2,        // 第二段连杆 / 肘（PB8，SG90，臂长 8.5cm）
+    SERVO_BASE_Z,        // 底座绕 Z 轴旋转（PB6，MG995）
     SERVO_COUNT          // 舵机总数，当前为 4
 } ServoId_t;
 
