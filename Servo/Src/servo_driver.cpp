@@ -1,3 +1,203 @@
 //
-// Created by MI on 2026/9/13.
+// 舵机驱动实现（移植自 CRTC_RobotArm 工程 servo.c，htim3 → htim4）
 //
+// 50Hz PWM 下 CCR 值 = 脉宽微秒数（PSC=71, ARR=19999，TIM4 时钟 72MHz）。
+//
+
+#include "servo_driver.h"
+#include "tim.h"
+#include <stddef.h>
+
+/**
+ * @brief 单个舵机的配置参数
+ */
+typedef struct
+{
+    uint32_t channel;          // 对应的 TIM4 通道
+    uint16_t min_pulse_us;     // 最小安全脉宽
+    uint16_t max_pulse_us;     // 最大安全脉宽
+    float min_angle_deg;       // 最小安全角度
+    float max_angle_deg;       // 最大安全角度
+    float startup_angle_deg;   // 上电初始角度
+    bool reversed;             // 是否反向（安装方向相反时置 1，不用改线）
+} ServoConfig_t;
+
+/**
+ * @brief 四个舵机的配置表
+ *
+ * 当前参数只是初始占位值，实物到手后分别标定。
+ */
+static const ServoConfig_t servo_config[SERVO_COUNT] =
+{
+    /* 舵机1：夹爪 */
+    {
+        TIM_CHANNEL_1,
+        1000,
+        2000,
+        0.0f,
+        180.0f,
+        45.0f,
+        false
+    },
+
+    /* 舵机2：第一段连杆 */
+    {
+        TIM_CHANNEL_2,
+        1000,
+        2000,
+        0.0f,
+        180.0f,
+        45.0f,
+        false
+    },
+
+    /* 舵机3：第二段连杆 */
+    {
+        TIM_CHANNEL_3,
+        1000,
+        2000,
+        0.0f,
+        180.0f,
+        135.0f,
+        false
+    },
+
+    /* 舵机4：Z 轴旋转（底座） */
+    {
+        TIM_CHANNEL_4,
+        1000,
+        2000,
+        0.0f,
+        180.0f,
+        0.0f,
+        false
+    }
+};
+
+/* 软件记录的是指令位置；普通三线舵机没有实际角度反馈。 */
+static float commanded_angle_deg[SERVO_COUNT];
+static bool commanded_angle_valid[SERVO_COUNT];
+
+bool servo_set_pulse(ServoId_t servo, uint16_t pulse_us)
+{
+    /* 检查舵机编号是否合法 */
+    if ((uint32_t)servo >= (uint32_t)SERVO_COUNT)
+    {
+        return false;
+    }
+
+    const ServoConfig_t *config = &servo_config[servo];
+
+    /* 脉宽下限/上限保护 */
+    if (pulse_us < config->min_pulse_us)
+    {
+        pulse_us = config->min_pulse_us;
+    }
+    if (pulse_us > config->max_pulse_us)
+    {
+        pulse_us = config->max_pulse_us;
+    }
+
+    /* 将脉宽写入对应 TIM4 通道（CCR = 微秒值） */
+    __HAL_TIM_SET_COMPARE(&htim4, config->channel, pulse_us);
+
+    /* 兼容直接调用 servo_set_pulse() 的代码，保持位置记录一致。 */
+    float ratio = (float)(pulse_us - config->min_pulse_us) /
+                  (float)(config->max_pulse_us - config->min_pulse_us);
+    if (config->reversed)
+    {
+        ratio = 1.0f - ratio;
+    }
+    commanded_angle_deg[servo] = config->min_angle_deg +
+        ratio * (config->max_angle_deg - config->min_angle_deg);
+    commanded_angle_valid[servo] = true;
+
+    return true;
+}
+
+bool servo_set_angle(ServoId_t servo, float angle_deg)
+{
+    /* 检查舵机编号是否合法 */
+    if ((uint32_t)servo >= (uint32_t)SERVO_COUNT)
+    {
+        return false;
+    }
+
+    const ServoConfig_t *config = &servo_config[servo];
+
+    /* 拒绝 NaN；超出范围的有限值及无穷大会被下面的限幅处理。 */
+    if (angle_deg != angle_deg)
+    {
+        return false;
+    }
+
+    /* 角度下限/上限保护 */
+    if (angle_deg < config->min_angle_deg)
+    {
+        angle_deg = config->min_angle_deg;
+    }
+    if (angle_deg > config->max_angle_deg)
+    {
+        angle_deg = config->max_angle_deg;
+    }
+
+    /* 将角度转换为 0~1 的比例；安装方向相反则反转比例 */
+    float ratio =
+        (angle_deg - config->min_angle_deg) /
+        (config->max_angle_deg - config->min_angle_deg);
+    if (config->reversed)
+    {
+        ratio = 1.0f - ratio;
+    }
+
+    /* 角度比例 → 脉宽 */
+    const uint16_t pulse_range_us =
+        (uint16_t)(config->max_pulse_us - config->min_pulse_us);
+    const float pulse_value_us =
+        (float)config->min_pulse_us + ratio * (float)pulse_range_us;
+    const uint16_t pulse_us = (uint16_t)pulse_value_us;
+
+    if (!servo_set_pulse(servo, pulse_us))
+    {
+        return false;
+    }
+
+    /* 保留已经限幅的角度；脉宽取整产生的误差不累加到下一轨迹。 */
+    commanded_angle_deg[servo] = angle_deg;
+    return true;
+}
+
+bool servo_get_commanded_angle(ServoId_t servo, float *angle_deg)
+{
+    if ((uint32_t)servo >= (uint32_t)SERVO_COUNT ||
+        angle_deg == NULL || !commanded_angle_valid[servo])
+    {
+        return false;
+    }
+    *angle_deg = commanded_angle_deg[servo];
+    return true;
+}
+
+bool servo_init(void)
+{
+    /* 先写入四个舵机的初始角度（CCR 就位后再开 PWM，避免上电乱摆） */
+    for (uint32_t i = 0; i < (uint32_t)SERVO_COUNT; i++)
+    {
+        if (!servo_set_angle((ServoId_t)i,
+                             servo_config[i].startup_angle_deg))
+        {
+            return false;
+        }
+    }
+
+    /* 启动 TIM4 四路 PWM（全工程此前从未启动过 TIM4） */
+    for (uint32_t i = 0; i < (uint32_t)SERVO_COUNT; i++)
+    {
+        if (HAL_TIM_PWM_Start(&htim4, servo_config[i].channel) != HAL_OK)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}

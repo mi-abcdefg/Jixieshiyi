@@ -1,0 +1,149 @@
+//
+// Created by MI on 2026/10/17.
+//
+
+// 机械臂任务实现：编排 gamepad / robot_control / arm_manual / arm_action。
+//
+// 数据流（每周期约 20ms）：
+//   PS2 解码结果（RemoteCommTask 每 10ms 刷新，这里只读）
+//     ├─ 按键位重排 → gamepad_update → robot_control_update（动作键，模式门控在其内部）
+//     └─ 摇杆归一化 → 按模式分流 → arm_manual_update（点动）
+//   arm_action_update（自动动作状态机推进）
+//
+// 摇杆分配（R2 切换控制对象，上电默认底盘模式）：
+//   ┌──────────────┬────────────────────────┬───────────────────────┐
+//   │ 输入         │ 底盘模式                │ 机械臂模式             │
+//   ├──────────────┼────────────────────────┼───────────────────────┤
+//   │ 左摇杆 XY    │ 底盘前后/平移           │ 末端水平面平移          │
+//   │ 右摇杆左右   │ 底盘旋转                │ 底座绕 Z 自转           │
+//   │ 右摇杆上下   │ 机械臂上下（两模式都有效）│ 机械臂上下              │
+//   └──────────────┴────────────────────────┴───────────────────────┘
+//   底盘模式的模式门控在 ChasisControlTask 内部（非底盘模式时轮速清零）。
+
+#include "arm_task.h"
+
+#include "ps2_decode.h"
+#include "control_mode.h"
+#include "gamepad.h"
+#include "robot_control.h"
+#include "arm_manual.h"
+#include "arm_action.h"
+#include "servo_driver.h"
+
+/* ------------------------------ 周期与阈值 ------------------------------ */
+#define ARM_TASK_PERIOD_MS        20U    // 与动作状态机 20ms 指令节拍一致
+
+/* PS2 模式字节：只有这两个值代表"已连上"（见 TestTask 顶部的说明） */
+#define PS2_MODE_ANALOG           0x73u
+#define PS2_MODE_DIGITAL          0x41u
+
+/* 摇杆中位与归一化满量程（解码层死区 118~138 已折回 128） */
+#define STICK_CENTER              128.0f
+#define STICK_RANGE               128.0f
+
+namespace {
+    /* ---------------- PS2 原始位 → gamepad 抽象位图 ----------------
+     * PS2 位定义见 ps2_decode.h；GAMEPAD_* 是软件自定义的统一格式。
+     * 换遥控器时只改这里。 */
+    uint16_t map_ps2_to_gamepad(uint8_t btn1, uint8_t btn2) {
+        uint16_t pressed = 0;
+        if (btn1 & PS2_BTN_SELECT)  pressed |= GAMEPAD_SELECT;
+        if (btn2 & PS2_BTN_TRIANGLE) pressed |= GAMEPAD_TRIANGLE;
+        if (btn2 & PS2_BTN_CIRCLE)   pressed |= GAMEPAD_CIRCLE;
+        if (btn2 & PS2_BTN_CROSS)    pressed |= GAMEPAD_CROSS;
+        if (btn2 & PS2_BTN_SQUARE)   pressed |= GAMEPAD_SQUARE;
+        return pressed;
+    }
+
+    /* 摇杆原始值 → 归一化 -1..1。
+     * 方向按直觉定义：上推 = 正。原始值上推变小，所以取负号。
+     * 实测方向不顺手时，改这里的符号即可，不要动下层模块。 */
+    float stick_to_norm(uint8_t raw, bool inverted) {
+        float v = (static_cast<float>(raw) - STICK_CENTER) / STICK_RANGE;
+        return inverted ? -v : v;
+    }
+
+    bool beyond_deadzone(float v) {
+        return v > ARM_MANUAL_DEADZONE || v < -ARM_MANUAL_DEADZONE;
+    }
+}
+
+void ArmTask::run() {
+    // 舵机 PWM 启动放在任务里（调度器启动后）而不是 xxx_init()：
+    // 与 RemoteCommTask 里 PS2_ConfigAnalogMode() 同理，保证所有初始化
+    // 都发生在调度器启动之后，时序行为一致。
+    // 初始化失败时停住本任务（舵机全无输出）；LED 任务照常指示 PS2 状态，
+    // 不用 Error_Handler()——那是关中断死循环，会拖死整个系统。
+    if (!servo_init()) {
+        for (;;) {
+            osDelay(1000);
+        }
+    }
+
+    arm_action_init();   // 读回初始姿态作为动作轨迹起点
+    arm_manual_init();
+    gamepad_init();
+
+    while (1) {
+        const uint32_t now_ms = osKernelSysTick();
+
+        /* ---------------- 手柄连接状态 ----------------
+         * 模式字节是 0x73 / 0x41 才代表链路正常（与 TestTask 的判据一致） */
+        const uint8_t ps2_mode = ps2_get_mode();
+        const bool connected =
+            (ps2_mode == PS2_MODE_ANALOG) || (ps2_mode == PS2_MODE_DIGITAL);
+
+        /* ---------------- 按键：喂给事件层 ----------------
+         * 每周期都要喂（断连时也要喂全 0），事件层才能正确维护边沿状态。 */
+        gamepad_update(map_ps2_to_gamepad(ps2_get_btn1(), ps2_get_btn2()),
+                       connected);
+
+        /* ---------------- 摇杆：归一化并按模式分流 ---------------- */
+        uint8_t left[2];
+        uint8_t right[2];
+        ps2_get_left_analog_data(left);
+        ps2_get_right_analog_data(right);
+
+        /* 左摇杆：上下=径向伸缩(上推+)，左右=切向绕行(左推+) */
+        const float radial     = stick_to_norm(left[1], true);
+        const float tangential = stick_to_norm(left[0], true);
+        /* 右摇杆：上下=抬高(上推+)，左右=底座自转(左推+) */
+        const float vertical   = stick_to_norm(right[1], true);
+        const float yaw        = stick_to_norm(right[0], true);
+
+        /* 平移和自转是机械臂模式的专属输入；右摇杆上下两种模式都给点动 */
+        const bool arm_active = (control_mode_get() == CONTROL_MODE_ARM);
+        const float manual_radial = arm_active ? radial : 0.0f;
+        const float manual_tangential = arm_active ? tangential : 0.0f;
+        const float manual_yaw = arm_active ? yaw : 0.0f;
+        const float manual_vertical = vertical;
+
+        /* ---------------- 仲裁：手动点动打断自动动作 ----------------
+         * 与 robot_control 的"动作中不响应新动作键"互补：
+         * 人手动推杆是最直接的意图表达，优先级最高。 */
+        const bool manual_input =
+            beyond_deadzone(manual_radial) || beyond_deadzone(manual_tangential) ||
+            beyond_deadzone(manual_vertical) || beyond_deadzone(manual_yaw);
+        if (manual_input &&
+            arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
+            arm_action_cancel();
+        }
+
+        /* ---------------- 推进机械臂各层 ---------------- */
+        arm_manual_update(now_ms, manual_radial, manual_tangential,
+                          manual_vertical, manual_yaw);
+        robot_control_update(now_ms);   // 事件在内部每周期取走，不残留
+        arm_action_update(now_ms);
+
+        osDelay(ARM_TASK_PERIOD_MS);
+    }
+}
+
+extern "C" {
+    ArmTask arm_task;
+
+    void arm_task_init() {
+        // 栈 512 字：点动/逆解有浮点局部量，与 ChasisControlTask 同级保险
+        arm_task.start("ArmTask", 512, osPriorityNormal);
+    }
+}

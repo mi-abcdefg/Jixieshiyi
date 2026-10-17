@@ -28,6 +28,7 @@
 #include "remote_comm_task.h"
 #include "chasis_control_task.h"
 #include "test_task.h"
+#include "arm_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,6 +87,7 @@ void MX_FREERTOS_Init(void) {
   remote_comm_task_init();
   chasis_control_task_init();
   test_task_init();
+  arm_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */

@@ -39,8 +39,24 @@ add_executable(${CMAKE_PROJECT_NAME}
         Motor/Src/motor_pwm_driver.cpp
         Servo/Inc/servo_driver.h
         Servo/Src/servo_driver.cpp
+        Arm/Inc/arm_action.h
+        Arm/Src/arm_action.c
+        Arm/Inc/arm_control.h
+        Arm/Src/arm_control.cpp
+        Arm/Inc/arm_ik.h
+        Arm/Src/arm_ik.cpp
+        Arm/Inc/arm_manual.h
+        Arm/Src/arm_manual.cpp
+        Arm/Inc/gamepad.h
+        Arm/Src/gamepad.cpp
+        Arm/Inc/robot_control.h
+        Arm/Src/robot_control.cpp
+        ControlMode/Inc/control_mode.h
+        ControlMode/Src/control_mode.cpp
         Task/Inc/chasis_control_task.h
         Task/Src/chasis_control_task.cpp
+        Task/Inc/arm_task.h
+        Task/Src/arm_task.cpp
         PS2/Inc/ps2_driver.h
         PS2/Src/ps2_driver.cpp
         PS2/Inc/ps2_decode.h
@@ -49,8 +65,7 @@ add_executable(${CMAKE_PROJECT_NAME}
         Task/Inc/remote_comm_task.h
         Task/Src/remote_comm_task.cpp
         Task/Inc/test_task.h
-        Task/Src/test_task.cpp
-        Task/Inc/test_task.h)
+        Task/Src/test_task.cpp)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -70,6 +85,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Chasis/Inc
     ${CMAKE_SOURCE_DIR}/Motor/Inc
     ${CMAKE_SOURCE_DIR}/Servo/Inc
+    ${CMAKE_SOURCE_DIR}/Arm/Inc
+    ${CMAKE_SOURCE_DIR}/ControlMode/Inc
     ${CMAKE_SOURCE_DIR}/PS2/Inc
     ${CMAKE_SOURCE_DIR}/Task/Inc
     ${CMAKE_SOURCE_DIR}/Task
