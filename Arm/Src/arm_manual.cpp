@@ -10,7 +10,23 @@
 #include "arm_ik.h"
 #include "arm_control.h"
 
+#include <math.h>
+
 #define ARM_MANUAL_PI 3.14159265f
+
+static float fabsf_local(float x)
+{
+    return x < 0.0f ? -x : x;
+}
+
+/* 三者中的绝对值最大者（关节同步限速用） */
+static float max_abs3(float a, float b, float c)
+{
+    float m = fabsf_local(a);
+    if (fabsf_local(b) > m) m = fabsf_local(b);
+    if (fabsf_local(c) > m) m = fabsf_local(c);
+    return m;
+}
 
 /* 内部状态 */
 static uint32_t last_update_ms = 0U;
@@ -138,7 +154,7 @@ void arm_manual_update(uint32_t now_ms,
 
     ArmManual_ClampTarget();
 
-    /* 逆解并下发；夹爪与点动无关，保持当前指令值 */
+    /* 逆解；夹爪与点动无关，保持当前指令值 */
     ArmJointAngles_t angles;
     if (!arm_ik_solve(tgt_theta_deg, tgt_r_m, tgt_z_m, &angles))
     {
@@ -150,8 +166,31 @@ void arm_manual_update(uint32_t now_ms,
     {
         return;
     }
-    pose.base_z_deg = angles.base_z_deg;
-    pose.link1_deg  = angles.link1_deg;
-    pose.link2_deg  = angles.link2_deg;
+
+    /* ---------------- 关节速度限制 ----------------
+     * 以当前指令角为基准计算本拍增量；任一关节超过上限时，
+     * 三个关节的增量按同一比例缩放——同步减速、路径形状不变。
+     * 这削平了奇异区（行程末端）的关节速度尖峰，消除舵机突然
+     * 加速和一顿一顿的现象。 */
+    const float max_step_deg = ARM_MANUAL_MAX_JOINT_DPS * dt_s;
+    const float d_base  = angles.base_z_deg - pose.base_z_deg;
+    const float d_link1 = angles.link1_deg  - pose.link1_deg;
+    const float d_link2 = angles.link2_deg  - pose.link2_deg;
+    const float max_delta = max_abs3(d_base, d_link1, d_link2);
+
+    if (max_delta > max_step_deg && max_delta > 0.0f)
+    {
+        const float k = max_step_deg / max_delta;
+        pose.base_z_deg += d_base  * k;
+        pose.link1_deg  += d_link1 * k;
+        pose.link2_deg  += d_link2 * k;
+    }
+    else
+    {
+        pose.base_z_deg = angles.base_z_deg;
+        pose.link1_deg  = angles.link1_deg;
+        pose.link2_deg  = angles.link2_deg;
+    }
+
     (void)arm_set_pose(&pose);
 }
