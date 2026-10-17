@@ -35,6 +35,11 @@
 #define ARM_MANUAL_Z_MIN_M          -0.02f
 #define ARM_MANUAL_Z_MAX_M           0.15f
 
+/* 底座方位角行程：等于底座舵机的角度域（servo_driver 配置表）。
+ * 超出即停在极限处（与 r/z 同策略）；不做环绕，避免目标与舵机限幅脱节。 */
+#define ARM_MANUAL_THETA_MIN_DEG     0.0f
+#define ARM_MANUAL_THETA_MAX_DEG     180.0f
+
 #ifdef __cplusplus
 extern "C" {
 #endif

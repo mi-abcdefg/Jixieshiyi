@@ -23,7 +23,9 @@ static float tgt_z_m = 0.0f;           // 高度
 
 /*
  * 把柱坐标目标夹到工作空间内。
- * r 用 IK 的可达边界；z 用本模块的软限位（唯一所有者，IK 不重复夹 z）。
+ * r 用 IK 的可达边界；z 用本模块的软限位（唯一所有者，IK 不重复夹 z）；
+ * theta 用底座舵机的行程范围——三者和舵机限幅保持一致，
+ * 否则下发时被舵机层夹掉的部分会让下一拍的正解起点跳变。
  */
 static void ArmManual_ClampTarget(void)
 {
@@ -35,6 +37,12 @@ static void ArmManual_ClampTarget(void)
     if (tgt_r_m > r_max) tgt_r_m = r_max;
     if (tgt_z_m < ARM_MANUAL_Z_MIN_M) tgt_z_m = ARM_MANUAL_Z_MIN_M;
     if (tgt_z_m > ARM_MANUAL_Z_MAX_M) tgt_z_m = ARM_MANUAL_Z_MAX_M;
+    if (tgt_theta_deg < ARM_MANUAL_THETA_MIN_DEG) {
+        tgt_theta_deg = ARM_MANUAL_THETA_MIN_DEG;
+    }
+    if (tgt_theta_deg > ARM_MANUAL_THETA_MAX_DEG) {
+        tgt_theta_deg = ARM_MANUAL_THETA_MAX_DEG;
+    }
 }
 
 /*
