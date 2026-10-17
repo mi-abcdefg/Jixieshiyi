@@ -29,6 +29,7 @@
 #include "chasis_control_task.h"
 #include "test_task.h"
 #include "arm_task.h"
+#include "servo_test_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -87,7 +88,12 @@ void MX_FREERTOS_Init(void) {
   remote_comm_task_init();
   chasis_control_task_init();
   test_task_init();
-  arm_task_init();
+  /* ====== 临时：舵机逐台自检模式（台架测试） ======
+   * 现在启动的是 ServoTestTask：上电回初始位 → 等 2s → 从下到上
+   * 逐台正转 45° 再回位。机械臂任务不启动，避免双方抢写舵机脉宽。
+   * 标定完成后把下面两行换回来即可恢复正常运行。 */
+  servo_test_task_init();
+  // arm_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
