@@ -87,17 +87,15 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
   remote_comm_task_init();
   chasis_control_task_init();
-  /* ====== 临时：舵机逐台自检模式（台架测试） ======
-   * 现在的运行组合：
-   *   - ServoTestTask：循环测试四路舵机，PC13 报数（闪 k 下 = 第 k 台）
-   *   - 关闭 TestTask：其状态灯与自检报数灯冲突（PC13 由自检任务独占）
-   *   - 关闭 ArmTask：避免与自检任务抢写舵机脉宽
-   * 标定完成后恢复：
-   *   test_task_init();
-   *   arm_task_init();   */
-  // test_task_init();
-  servo_test_task_init();
-  // arm_task_init();
+  test_task_init();
+  arm_task_init();
+  /* 舵机逐台自检（ServoTestTask）平时不启动。下次标定舵机（如重新接线后
+   * 验证）时再启用，并同时注释掉上面两行——避免与机械臂任务抢写舵机脉宽、
+   * 与 TestTask 抢占 PC13 报数灯：
+   *   // test_task_init();
+   *   // arm_task_init();
+   *   servo_test_task_init();                                      */
+  // servo_test_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
