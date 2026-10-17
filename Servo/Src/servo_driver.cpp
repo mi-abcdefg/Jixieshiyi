@@ -25,8 +25,10 @@ typedef struct
 /**
  * @brief 四个舵机的配置表（编号 → 通道/限幅，按实际接线排序）
  *
- * 物理布局从下往上：PB6 底座 MG995（绕 Z）→ PB7 肩 SG90（11cm 臂）
- * → PB8 肘 SG90（8.5cm 臂）→ PB9 夹爪 SG90。
+ * 实际接线（2026-10-17 通道辨识测试确认）：PB6 夹爪 SG90、PB7 肩 SG90
+ * （11cm 臂）、PB8 肘 SG90（8.5cm 臂）、PB9 底座 MG995（绕 Z）。
+ * 注意机构从下往上仍是 底座→肩→肘→夹爪，但 PB6 与 PB9 的插头和最初
+ * 描述正好互换——上层全用 ServoId_t，通道差异只体现在本配置表。
  *
  * 脉宽范围按数据手册标称值统一 500~2500µs（MG995 标称 500~2500µs；
  * SG90 要求标准 PWM：周期 20ms、高电平 0.5~2.5ms。TIM4 配置恰好是
@@ -39,9 +41,9 @@ typedef struct
  */
 static const ServoConfig_t servo_config[SERVO_COUNT] =
 {
-    /* 底座：绕 Z 轴旋转（PB6，MG995） */
+    /* 底座：绕 Z 轴旋转（PB9，MG995） */
     {
-        TIM_CHANNEL_1,
+        TIM_CHANNEL_4,
         500,
         2500,
         0.0f,
@@ -76,9 +78,9 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         false
     },
 
-    /* 夹爪（PB9，SG90） */
+    /* 夹爪（PB6，SG90） */
     {
-        TIM_CHANNEL_4,
+        TIM_CHANNEL_1,
         500,
         2500,
         0.0f,

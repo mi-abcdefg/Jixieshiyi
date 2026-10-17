@@ -22,11 +22,11 @@
  * arm_action / arm_manual）一律用编号，编号→定时器通道的映射只存在于
  * servo_driver.cpp 的配置表里。
  *
- * 实际硬件（从下往上，挖掘机构型）：
- *   PB6/TIM4_CH1  底座 MG995 —— 整臂绕 Z 轴旋转（SERVO_BASE_Z）
+ * 实际接线（通道辨识测试确认，机构从下往上仍是 底座→肩→肘→夹爪）：
+ *   PB6/TIM4_CH1  夹爪 SG90（SERVO_GRIPPER）
  *   PB7/TIM4_CH2  肩关节 SG90 —— 带 11cm 第一连杆（SERVO_LINK_1）
  *   PB8/TIM4_CH3  肘关节 SG90 —— 带 8.5cm 第二连杆（SERVO_LINK_2）
- *   PB9/TIM4_CH4  夹爪 SG90（SERVO_GRIPPER）
+ *   PB9/TIM4_CH4  底座 MG995 —— 整臂绕 Z 轴旋转（SERVO_BASE_Z）
  * ------------------------------------------------------------------ */
 typedef enum {
     SERVO_GRIPPER = 0,   // 夹爪（PB9，SG90）
