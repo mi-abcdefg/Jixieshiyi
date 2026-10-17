@@ -87,15 +87,14 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
   remote_comm_task_init();
   chasis_control_task_init();
-  /* ====== 临时：舵机逐台自检模式（排查机械臂问题：先验证舵机硬件层） ======
-   * ServoTestTask：PC13 报数（闪 k 下 = 测第 k 台，顺序 PB6→PB9），
-   * 每台正转 45° 再回位，无限循环。
-   * TestTask / ArmTask 暂停：PC13 报数灯冲突 + 避免抢写舵机脉宽。
-   * 判读：自检四台全部正常 → 硬件层 OK，问题在解算层（IK/方向约定）。
-   * 排查完恢复正常运行：放开下面两行、注释掉 servo_test_task_init()。 */
-  // test_task_init();
-  // arm_task_init();
-  servo_test_task_init();
+  test_task_init();
+  arm_task_init();
+  /* 舵机逐台自检（ServoTestTask）平时不启动。下次标定舵机时再启用，
+   * 并同时注释掉上面两行（避免抢写舵机脉宽 / PC13 报数灯冲突）：
+   *   // test_task_init();
+   *   // arm_task_init();
+   *   servo_test_task_init();                                      */
+  // servo_test_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
