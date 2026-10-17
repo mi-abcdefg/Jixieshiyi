@@ -29,15 +29,25 @@ void mecanum_get_wheel_speeds(float vx,
     wheel_speeds[MECANUM_WHEEL_BR] = vx + vy - k * omega;
 
 
-    // 速度归一化
-    float max_speed = std::max(std::max(std::max(wheel_speeds[MECANUM_WHEEL_FL], wheel_speeds[MECANUM_WHEEL_FR]),
-    wheel_speeds[MECANUM_WHEEL_BL]), wheel_speeds[MECANUM_WHEEL_BR]);
+    // 速度归一化：必须按"绝对值最大"的轮速做等比缩放。
+    // 原来只取带符号的最大值，倒车/反向旋转时最大轮速是负数，
+    // 饱和判断会失效，导致某个轮子单独被限幅、运动方向发生偏斜。
+    float max_speed = 0.0f;
+    for (uint8_t i = 0U; i < 4U; ++i)
+    {
+        const float abs_speed = std::fabs(wheel_speeds[i]);
+        if (abs_speed > max_speed)
+        {
+            max_speed = abs_speed;
+        }
+    }
+
     if (max_speed > MECANUM_MAX_SPEED)
     {
-
+        const float scale = MECANUM_MAX_SPEED / max_speed;
         for (uint8_t i = 0U; i < 4U; ++i)
         {
-            wheel_speeds[i] *= MECANUM_MAX_SPEED / max_speed;
+            wheel_speeds[i] *= scale;
         }
     }
 }

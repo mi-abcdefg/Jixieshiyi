@@ -47,7 +47,10 @@ add_executable(${CMAKE_PROJECT_NAME}
         PS2/Src/ps2_decode.cpp
         Task/TaskBase.h
         Task/Inc/remote_comm_task.h
-        Task/Src/remote_comm_task.cpp)
+        Task/Src/remote_comm_task.cpp
+        Task/Inc/test_task.h
+        Task/Src/test_task.cpp
+        Task/Inc/test_task.h)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

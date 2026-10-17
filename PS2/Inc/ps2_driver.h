@@ -25,6 +25,7 @@ extern "C" {
 
     void PS2_Init(void);
     void PS2_ScanKey(JOYSTICK_TypeDef *JoystickStruct);
+    void PS2_ConfigAnalogMode(void);   // 让手柄进入模拟模式（否则摇杆数据不更新）
     void delay_us(uint32_t udelay);
 
 #ifdef __cplusplus

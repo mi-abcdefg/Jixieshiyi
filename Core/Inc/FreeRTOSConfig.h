@@ -51,7 +51,6 @@
 #if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)
   #include <stdint.h>
   extern uint32_t SystemCoreClock;
-  void xPortSysTickHandler(void);
 #endif
 #define configENABLE_FPU                         0
 #define configENABLE_MPU                         0
@@ -131,10 +130,36 @@ standard names. */
 /* IMPORTANT: This define is commented when used with STM32Cube firmware, when the timebase source is SysTick,
               to prevent overwriting SysTick_Handler defined within STM32Cube HAL */
 
-/* #define xPortSysTickHandler SysTick_Handler */
+#define xPortSysTickHandler SysTick_Handler
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+
+/* ============================================================================
+ * 【重要】CubeMX 每次重新生成代码，都会把它生成的那行 configTOTAL_HEAP_SIZE
+ * 覆盖回默认值 3072。而本工程 4 个任务的栈加起来约 4.6 KB：
+ *     RemoteCommTask     256 字 = 1024 B
+ *     ChasisControlTask  512 字 = 2048 B
+ *     TestTask           256 字 = 1024 B
+ *     defaultTask        128 字 =  512 B
+ * 再加 4 个 TCB 和 heap_4 的块头，总共约 5 KB。3072 只够创建 3 个任务。
+ *
+ * 最坑的是：xTaskCreate() 在堆不够时是【静默失败】——只返回
+ * errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY，不报错也不触发断言，osThreadCreate()
+ * 只是返回 NULL。于是会出现"手柄正常、LED 正常，但电机不动"的迷惑现象，
+ * 因为 ChasisControlTask 压根没被创建出来，motor_set_wheel_speed() 从没被调用。
+ *
+ * 所以在这里（USER CODE 区，CubeMX 不会覆盖）重新定义，保证堆够用。
+ * 另外建议在 CubeMX 的 FreeRTOS -> Config parameters -> MEMORY MANAGEMENT
+ * settings 里把 TOTAL_HEAP_SIZE 也设成 10240，让 .ioc 记住这个值。
+ * ========================================================================== */
+#undef configTOTAL_HEAP_SIZE
+#define configTOTAL_HEAP_SIZE                    ((size_t)10240)
+
+/* 打开"堆分配失败钩子"：以后一旦再出现堆不够，会立刻快闪 PC13 报警，
+ * 而不是像上面那样悄悄少创建一个任务。实现见 Core/Src/freertos.c */
+#undef configUSE_MALLOC_FAILED_HOOK
+#define configUSE_MALLOC_FAILED_HOOK             1
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */

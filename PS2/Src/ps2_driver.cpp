@@ -104,6 +104,41 @@ static uint8_t PS2_ReadWriteData(uint8_t cmd)
 }
 
 /**
+  * @brief  让手柄进入模拟模式（ANALOG）
+  * @note   只发 0x42 轮询命令的话，手柄会保持在上电时的模式（常见是数字模式）。
+  *         数字模式下第 5~8 字节的摇杆数据不会更新（固定 0x00 或 0xFF），
+  *         表现就是"按键正常、摇杆完全无效"。这里按标准 PS2 协议发配置序列切模式。
+  *
+  *         如果这个无线接收器不支持 0x43 / 0x44 配置命令，这段就无效，
+  *         只能靠手柄上的 MODE 键手动切到"红灯绿灯都亮"的模拟模式。
+  *         可以用 ps2_get_mode() 判断结果：0x73 = 模拟模式，0x41 = 数字模式。
+  * @retval 无
+  */
+void PS2_ConfigAnalogMode(void)
+{
+    // 进入配置模式 -> 设为模拟模式 -> 退出配置模式
+    static const uint8_t enter_config[9] = {0x01, 0x43, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    static const uint8_t set_analog[9]   = {0x01, 0x44, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    static const uint8_t exit_config[9]  = {0x01, 0x43, 0x00, 0x00, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A};
+    uint8_t i;
+
+    CS_L();
+    for(i = 0; i < 9; i++) { PS2_ReadWriteData(enter_config[i]); }
+    CS_H();
+    delay_us(100);
+
+    CS_L();
+    for(i = 0; i < 9; i++) { PS2_ReadWriteData(set_analog[i]); }
+    CS_H();
+    delay_us(100);
+
+    CS_L();
+    for(i = 0; i < 9; i++) { PS2_ReadWriteData(exit_config[i]); }
+    CS_H();
+    delay_us(100);
+}
+
+/**
   * @brief  PS2获取按键及摇杆数值
   * @param  *JoystickStruct 手柄键值结构体
   * @retval 无

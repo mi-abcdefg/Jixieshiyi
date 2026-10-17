@@ -25,7 +25,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "remote_comm_task.h"
+#include "chasis_control_task.h"
+#include "test_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -81,7 +83,9 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-
+  remote_comm_task_init();
+  chasis_control_task_init();
+  test_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -124,6 +128,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
@@ -131,6 +136,24 @@ void StartDefaultTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
+/**
+  * @brief  FreeRTOS 堆分配失败钩子（configUSE_MALLOC_FAILED_HOOK = 1 时生效）
+  * @note   pvPortMalloc() 拿不到内存时被调用。最常见的原因就是 configTOTAL_HEAP_SIZE
+  *         不够（例如被 CubeMX 覆盖回 3072），导致某个任务没创建成功。
+  *         这里用 PC13 快闪（0.1s 亮灭）把问题暴露出来——否则只会静默少一个任务，
+  *         表现为"其它都正常，就是某个功能不动"，非常难查。
+  *         注意：本函数可能在任意上下文、甚至调度器启动前被调用，
+  *         所以不能用 osDelay()，这里用依赖 TIM1 时基的 HAL_Delay()。
+  */
+void vApplicationMallocFailedHook(void)
+{
+  for (;;)
+  {
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);  // 点亮（低电平点亮）
+    HAL_Delay(100);
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);    // 熄灭
+    HAL_Delay(100);
+  }
+}
 /* USER CODE END Application */
 
