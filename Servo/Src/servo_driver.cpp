@@ -35,7 +35,7 @@ typedef struct
  * 注意：电气范围 ≠ 机械安全范围。臂体连杆机构未必允许每个关节跑满
  * 180°——若实物上某关节接近极限会顶死/堵转，把该舵机的
  * min/max_pulse_us（或对应 min/max_angle_deg）向内收紧。
- * startup 角度仍是占位值，待标定。
+ * 上电初始角统一 90°（电气中位，脉宽 1500µs）。
  */
 static const ServoConfig_t servo_config[SERVO_COUNT] =
 {
@@ -46,7 +46,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         2500,
         0.0f,
         180.0f,
-        0.0f,
+        90.0f,
         false
     },
 
@@ -57,7 +57,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         2500,
         0.0f,
         180.0f,
-        45.0f,
+        90.0f,
         false
     },
 
@@ -68,7 +68,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         2500,
         0.0f,
         180.0f,
-        135.0f,
+        90.0f,
         false
     },
 
@@ -79,7 +79,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         2500,
         0.0f,
         180.0f,
-        45.0f,
+        90.0f,
         false
     }
 };
