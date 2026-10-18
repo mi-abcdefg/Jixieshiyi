@@ -41,14 +41,16 @@ typedef struct
  */
 static const ServoConfig_t servo_config[SERVO_COUNT] =
 {
-    /* 底座：绕 Z 轴旋转（PB9，MG995） */
+    /* 底座：绕 Z 轴旋转（PB9，MG995）
+     * 命令角 = 相对 +X 轴、绕 +Z 逆时针的方位角（右手系，X 为车头反方向）。
+     * 中值 180° 对应臂朝 -X（车头方向）——2026/10/17 实测零位标定。 */
     {
         TIM_CHANNEL_4,
         500,
         2500,
-        0.0f,
-        180.0f,
         90.0f,
+        270.0f,
+        180.0f,
         false
     },
 
@@ -63,19 +65,19 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         true
     },
 
-    /* 肘关节：第二段连杆，臂长 8.5cm（PB8，SG90）
-     * 角度域用负值 [-180°, 0°]：arm_ik 的"肘上"解给第二连杆的相对角恒为负
-     * （范围 [-180°, 0]）。若按 [0°, 180°] 限幅，负解会被硬夹到 0°——
-     * 表现为推杆时舵机猛摆向电气极限、松杆再推又从被夹过的错误姿态重新起步。
-     * 初始角 -90° 即该角度域的中位（脉宽 1500µs，与其它舵机的 90° 等价）。
+    /* 肘关节：第二段连杆，臂长 8.5cm（PB8，SG90）。
+     * 命令角 = 相对肩连杆的带符号夹角（肘上抬方向为正增加，与 arm_ik 一致）。
+     * 域 [-120°, 60°]、初始 -30°：2026/10/17 实测零位标定——中值（1500µs）时
+     * 肘连杆绝对仰角 60°（肩 90° + 相对 -30°），即"距 +Z 向 -X 偏 30°"。
+     * 域宽仍 180°，脉宽映射不变，物理臂在改域前后位置完全一致。
      * 实测安装方向相反，reversed 翻转（只镜像物理方向，不改变软件角度约定）。 */
     {
         TIM_CHANNEL_3,
         500,
         2500,
-        -180.0f,
-        0.0f,
-        -90.0f,
+        -120.0f,
+        60.0f,
+        -30.0f,
         true
     },
 
@@ -192,6 +194,19 @@ bool servo_get_commanded_angle(ServoId_t servo, float *angle_deg)
         return false;
     }
     *angle_deg = commanded_angle_deg[servo];
+    return true;
+}
+
+bool servo_get_angle_range(ServoId_t servo, float *min_deg, float *max_deg)
+{
+    if ((uint32_t)servo >= (uint32_t)SERVO_COUNT ||
+        min_deg == NULL || max_deg == NULL)
+    {
+        return false;
+    }
+    /* 点动限幅用：命令角域以配置表为唯一数据源，避免两处各记一份后失同步 */
+    *min_deg = servo_config[servo].min_angle_deg;
+    *max_deg = servo_config[servo].max_angle_deg;
     return true;
 }
 

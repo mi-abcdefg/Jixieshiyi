@@ -4,21 +4,23 @@
 
 // 机械臂任务实现：编排 gamepad / robot_control / arm_manual / arm_action。
 //
+// 摇杆分配（挖掘机式关节直控，R2 切换控制对象，上电默认底盘模式）：
+//   ┌──────────────┬────────────────────────┬──────────────────────────┐
+//   │ 输入         │ 底盘模式                │ 机械臂模式                │
+//   ├──────────────┼────────────────────────┼──────────────────────────┤
+//   │ 右摇杆 左右   │ 底盘旋转                │ 底座旋转（方位角）         │
+//   │ 右摇杆 上下   │ 肩抬落（两模式都有效）   │ 肩抬落                    │
+//   │ 左摇杆 上下   │ 底盘前后                │ 肘抬落                    │
+//   │ 左摇杆 左右   │ 底盘平移                │ 夹爪开合                  │
+//   └──────────────┴────────────────────────┴──────────────────────────┘
+//   动作键（△○×□ 触发预置序列、SELECT 取消）仅机械臂模式生效，
+//   SELECT 取消在两种模式下都可用（详见 robot_control）。
+//
 // 数据流（每周期约 20ms）：
 //   PS2 解码结果（RemoteCommTask 每 10ms 刷新，这里只读）
 //     ├─ 按键位重排 → gamepad_update → robot_control_update（动作键，模式门控在其内部）
-//     └─ 摇杆归一化 → 按模式分流 → arm_manual_update（点动）
+//     └─ 摇杆归一化 → 按模式分流 → arm_manual_update（关节点动）
 //   arm_action_update（自动动作状态机推进）
-//
-// 摇杆分配（R2 切换控制对象，上电默认底盘模式）：
-//   ┌──────────────┬────────────────────────┬───────────────────────┐
-//   │ 输入         │ 底盘模式                │ 机械臂模式             │
-//   ├──────────────┼────────────────────────┼───────────────────────┤
-//   │ 左摇杆 XY    │ 底盘前后/平移           │ 末端水平面平移          │
-//   │ 右摇杆左右   │ 底盘旋转                │ 底座绕 Z 自转           │
-//   │ 右摇杆上下   │ 机械臂上下（两模式都有效）│ 机械臂上下              │
-//   └──────────────┴────────────────────────┴───────────────────────┘
-//   底盘模式的模式门控在 ChasisControlTask 内部（非底盘模式时轮速清零）。
 
 #include "arm_task.h"
 
@@ -98,40 +100,42 @@ void ArmTask::run() {
         gamepad_update(map_ps2_to_gamepad(ps2_get_btn1(), ps2_get_btn2()),
                        connected);
 
-        /* ---------------- 摇杆：归一化并按模式分流 ---------------- */
+        /* ---------------- 摇杆：归一化（挖掘机式关节分配） ----------------
+         * 各轴正方向 = 对应关节命令角增大方向（见 arm_manual.h）。
+         * 开/合、旋转等物理方向若与直觉相反，改这里的 inverted 参数。 */
         uint8_t left[2];
         uint8_t right[2];
         ps2_get_left_analog_data(left);
         ps2_get_right_analog_data(right);
 
-        /* 左摇杆：上下=径向伸缩(上推+)，左右=切向绕行(左推+) */
-        const float radial     = stick_to_norm(left[1], true);
-        const float tangential = stick_to_norm(left[0], true);
-        /* 右摇杆：上下=抬高(上推+)，左右=底座自转(左推+) */
-        const float vertical   = stick_to_norm(right[1], true);
-        const float yaw        = stick_to_norm(right[0], true);
+        const float base_yaw  = stick_to_norm(right[0], true);  // 右X：左推=方位角+（逆时针）
+        const float shoulder  = stick_to_norm(right[1], true);  // 右Y：上推=肩抬高
+        const float elbow     = stick_to_norm(left[1], true);   // 左Y：上推=肘抬起
+        const float gripper   = stick_to_norm(left[0], true);   // 左X：左推=夹爪角+（开/闭方向实物标定）
 
-        /* 平移和自转是机械臂模式的专属输入；右摇杆上下两种模式都给点动 */
-        const bool arm_active = (control_mode_get() == CONTROL_MODE_ARM);
-        const float manual_radial = arm_active ? radial : 0.0f;
-        const float manual_tangential = arm_active ? tangential : 0.0f;
-        const float manual_yaw = arm_active ? yaw : 0.0f;
-        const float manual_vertical = vertical;
+        /* 模式分流：肩抬落保留"两种模式都可用"（原需求：底盘模式下也能
+         * 用右摇杆上下调臂）；其余三个关节是机械臂模式专属，避免与底盘
+         * 的左摇杆/右摇杆左右冲突。 */
+        const bool arm_mode = (control_mode_get() == CONTROL_MODE_ARM);
+        const float manual_base    = arm_mode ? base_yaw : 0.0f;
+        const float manual_shoulder = shoulder;
+        const float manual_elbow   = arm_mode ? elbow : 0.0f;
+        const float manual_gripper = arm_mode ? gripper : 0.0f;
 
         /* ---------------- 仲裁：手动点动打断自动动作 ----------------
          * 与 robot_control 的"动作中不响应新动作键"互补：
          * 人手动推杆是最直接的意图表达，优先级最高。 */
         const bool manual_input =
-            beyond_deadzone(manual_radial) || beyond_deadzone(manual_tangential) ||
-            beyond_deadzone(manual_vertical) || beyond_deadzone(manual_yaw);
+            beyond_deadzone(manual_base) || beyond_deadzone(manual_shoulder) ||
+            beyond_deadzone(manual_elbow) || beyond_deadzone(manual_gripper);
         if (manual_input &&
             arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
             arm_action_cancel();
         }
 
         /* ---------------- 推进机械臂各层 ---------------- */
-        arm_manual_update(now_ms, manual_radial, manual_tangential,
-                          manual_vertical, manual_yaw);
+        arm_manual_update(now_ms, manual_base, manual_shoulder,
+                          manual_elbow, manual_gripper);
         robot_control_update(now_ms);   // 事件在内部每周期取走，不残留
         arm_action_update(now_ms);
 
@@ -143,7 +147,7 @@ extern "C" {
     ArmTask arm_task;
 
     void arm_task_init() {
-        // 栈 512 字：点动/逆解有浮点局部量，与 ChasisControlTask 同级保险
+        // 栈 512 字：关节点动逻辑轻量，但保留与 ChasisControlTask 同级的余量
         arm_task.start("ArmTask", 512, osPriorityNormal);
     }
 }

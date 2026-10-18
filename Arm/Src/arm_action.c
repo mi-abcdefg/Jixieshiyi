@@ -6,8 +6,12 @@
 //   - 函数名 snake_case 化（与工程导出风格一致）；
 //   - 姿态读回改走 arm_get_pose()，不再直接读舵机层。
 // 动作序列的角度全部是占位值，实物标定时只改下面的步骤表。
-// 注意 link2（肘）的角度域是负值 [-180°, 0°]（与 servo_driver 配置表和
-// arm_ik 的"肘上"解约定一致），填正值会被舵机限幅夹到 0°。
+// 角度约定（与 servo_driver 配置表一致，2026/10/17 零位标定后命令角=物理角）：
+//   base_z_deg = 相对 +X 逆时针方位角，180° = 臂朝 -X（车头方向）
+//   link1_deg  = 肩连杆相对水平的仰角，90° = 竖直向上
+//   link2_deg  = 肘相对肩连杆的夹角，域 [-120°, 60°]；-30° 对应绝对仰角 60°
+// 占位期所有步骤统一为 HOME 位形（180/90/-30，即上电中位），触发动作
+// 只会平稳回位不乱挥；标定时按"接近→闭合→抬起"逐步改各步骤姿态。
 //
 
 #include "arm_action.h"
@@ -65,9 +69,9 @@ static const ArmActionStep_t grab_mode_1_steps[] =
         .pose =
         {
             .gripper_deg = 45.0f,
-            .link1_deg   = 45.0f,
-            .link2_deg   = -45.0f,
-            .base_z_deg  = 45.0f
+            .link1_deg   = 90.0f,
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -78,9 +82,9 @@ static const ArmActionStep_t grab_mode_1_steps[] =
         .pose =
         {
             .gripper_deg = 90.0f,
-            .link1_deg   = 45.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 45.0f
+            .link1_deg   = 90.0f,
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -92,8 +96,8 @@ static const ArmActionStep_t grab_mode_1_steps[] =
         {
             .gripper_deg = 45.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -45.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -105,8 +109,8 @@ static const ArmActionStep_t grab_mode_1_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -121,8 +125,8 @@ static const ArmActionStep_t grab_mode_2_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -134,8 +138,8 @@ static const ArmActionStep_t grab_mode_2_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -147,8 +151,8 @@ static const ArmActionStep_t grab_mode_2_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -160,8 +164,8 @@ static const ArmActionStep_t grab_mode_2_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -176,8 +180,8 @@ static const ArmActionStep_t grab_mode_3_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -189,8 +193,8 @@ static const ArmActionStep_t grab_mode_3_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -202,8 +206,8 @@ static const ArmActionStep_t grab_mode_3_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -215,8 +219,8 @@ static const ArmActionStep_t grab_mode_3_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -234,8 +238,8 @@ static const ArmActionStep_t place_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000
@@ -247,8 +251,8 @@ static const ArmActionStep_t place_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 500
@@ -260,8 +264,8 @@ static const ArmActionStep_t place_steps[] =
         {
             .gripper_deg = 90.0f,
             .link1_deg   = 90.0f,
-            .link2_deg   = -90.0f,
-            .base_z_deg  = 90.0f
+            .link2_deg   = -30.0f,
+            .base_z_deg  = 180.0f
         },
         .move_ms = 1200U,
         .hold_ms = 1000

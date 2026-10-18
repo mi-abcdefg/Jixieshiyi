@@ -66,6 +66,11 @@ bool servo_set_angle(ServoId_t servo, float angle_deg);
  */
 bool servo_get_commanded_angle(ServoId_t servo, float *angle_deg);
 
+/**
+ * @brief 读取该舵机的命令角域 [min, max]（点动限幅用，唯一数据源是配置表）
+ */
+bool servo_get_angle_range(ServoId_t servo, float *min_deg, float *max_deg);
+
 #ifdef __cplusplus
 }
 #endif
