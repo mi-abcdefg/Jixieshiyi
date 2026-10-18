@@ -5,8 +5,12 @@
 #include "robot_control.h"
 
 #include "arm_action.h"
+#include "arm_control.h"
 #include "gamepad.h"
 #include "control_mode.h"
+
+/* 夹爪当前档位记忆（true = 处于闭合档） */
+static bool gripper_at_close = false;
 
 void robot_control_update(uint32_t now_ms)
 {
@@ -29,6 +33,19 @@ void robot_control_update(uint32_t now_ms)
     /* 抓取/放置动作键只在机械臂模式生效。
      * 事件已取出并丢弃，不会残留到切回机械臂模式之后。 */
     if (control_mode_get() != CONTROL_MODE_ARM) {
+        return;
+    }
+
+    /* 十字键"左"：夹爪在张开/闭合两档间快速切换。
+     * 若动作正在执行先取消——动作每拍整姿下发，会把这里的夹爪指令覆盖掉；
+     * 取消与手动推杆打断是同一优先级策略。 */
+    if ((events & GAMEPAD_PAD_LEFT) != 0U) {
+        if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
+            arm_action_cancel();
+        }
+        gripper_at_close = !gripper_at_close;
+        (void)arm_set_gripper(gripper_at_close ? ARM_GRIPPER_CLOSE_DEG
+                                               : ARM_GRIPPER_OPEN_DEG);
         return;
     }
 

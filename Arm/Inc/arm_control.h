@@ -42,6 +42,12 @@ bool arm_set_pose(const ArmPose_t *pose);
  */
 bool arm_get_pose(ArmPose_t *pose);
 
+/**
+ * @brief 只设置夹爪角度，其余三个关节保持当前指令值
+ * @return false 表示姿态尚未初始化或舵机设置失败
+ */
+bool arm_set_gripper(float angle_deg);
+
 #ifdef __cplusplus
 }
 #endif

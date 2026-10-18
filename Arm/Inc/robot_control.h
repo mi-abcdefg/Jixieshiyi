@@ -20,6 +20,12 @@
 #pragma once
 #include <stdint.h>
 
+/* ---------------- 夹爪两档位（机械臂模式点按十字键"左"切换） ----------------
+ * 两档角度是占位值，夹爪标定后改为实测的全开/全闭角。
+ * 切换时直接下发目标脉宽，SG90 以自身最大速度摆过去（即"快速切换"）。 */
+#define ARM_GRIPPER_OPEN_DEG      60.0f   // 张开档
+#define ARM_GRIPPER_CLOSE_DEG     120.0f  // 闭合档
+
 #ifdef __cplusplus
 extern "C" {
 #endif

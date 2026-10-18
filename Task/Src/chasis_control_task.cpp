@@ -5,14 +5,25 @@
 #include "chasis_control_task.h"
 #include "control_mode.h"
 
+#include <cmath>
+
 void ChasisControlTask::run() {
     // 按键边沿检测用（只在"按下那一刻"翻转一次，否则按住会每 10ms 翻一次）
     bool l2_last_pressed = false;   // L2：电机驱动通断
-    bool l1_last_pressed = false;   // L1：快速/慢速模式翻转
+    bool l1_last_pressed = false;   // L1：三档调速循环
     bool r2_last_pressed = false;   // R2：底盘/机械臂操作对象切换
-    bool slow_mode = false;         // 上电默认【快速模式】
+    uint8_t speed_level = 0;        // 0=快速 1=中速(比例) 2=固定慢速；上电默认快速
+
+    // 十字键定距平移状态（仅底盘模式）
+    bool pad_was_active = false;
+    uint32_t pad_start_ms = 0U;        // 本次按下时刻
+    uint32_t pad_step_until_ms = 0U;   // 当前这段平移要走到的时间点
+    float pad_vx_cmd = 0.0f;           // 松杆后补完点按步时要用的方向记忆
+    float pad_vy_cmd = 0.0f;
 
     while (1) {
+        const uint32_t now_ms = osKernelSysTick();
+        const uint8_t btn1 = ps2_get_btn1();
         const uint8_t btn2 = ps2_get_btn2();
 
         // ---------------- L2：电机驱动通断（上电默认关断） ----------------
@@ -22,10 +33,10 @@ void ChasisControlTask::run() {
         }
         l2_last_pressed = l2_pressed;
 
-        // ---------------- L1：快速/慢速模式翻转 ----------------
+        // ---------------- L1：三档调速循环（快 → 中 → 固定慢速） ----------------
         const bool l1_pressed = (btn2 & PS2_BTN_L1) != 0;
         if (l1_pressed && !l1_last_pressed) {
-            slow_mode = !slow_mode;
+            speed_level = static_cast<uint8_t>((speed_level + 1U) % 3U);
         }
         l1_last_pressed = l1_pressed;
 
@@ -47,7 +58,7 @@ void ChasisControlTask::run() {
         // 将摇杆数据转换为车体速度指令：vx/vy 单位 m/s，omega 单位 rad/s
         //   左摇杆上下 -> vx 前进/后退
         //   左摇杆左右 -> vy 原地平移
-        //   右摇杆左右 -> omega 原地旋转（右摇杆上下：机械臂点动，见 ArmTask）
+        //   右摇杆左右 -> omega 原地旋转（右摇杆上下：机械臂肩关节，见 ArmTask）
         float vx = (left_analog[1] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 前进/后退速度
         float vy = (left_analog[0] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 左/右速度
         float omega = (right_analog[0] - 128) / 128.0f * MECANUM_MAX_OMEGA_RADPS; // 旋转角速度
@@ -55,6 +66,66 @@ void ChasisControlTask::run() {
         // 原地旋转方向标定（B 车实测反向）：只翻转底盘旋转，见 chasis_control_task.h
         if (CHASIS_OMEGA_INVERT) {
             omega = -omega;
+        }
+
+        // ---------------- 固定慢速档 ----------------
+        // 方向仍随摇杆，但大小恒定：归一化量越过死区即取满档位速度。
+        // 解码层死区外最小归一化值约 0.086，阈值取 0.05 只区分"推没推"。
+        if (speed_level == 2U) {
+            if (std::fabs(vx) > 0.05f * MECANUM_MAX_SPEED) {
+                vx = (vx > 0.0f ? 1.0f : -1.0f) *
+                     MECANUM_MAX_SPEED * CHASIS_FIXED_SLOW_SPEED_RATIO;
+            } else {
+                vx = 0.0f;
+            }
+            if (std::fabs(vy) > 0.05f * MECANUM_MAX_SPEED) {
+                vy = (vy > 0.0f ? 1.0f : -1.0f) *
+                     MECANUM_MAX_SPEED * CHASIS_FIXED_SLOW_SPEED_RATIO;
+            } else {
+                vy = 0.0f;
+            }
+            if (std::fabs(omega) > 0.05f * MECANUM_MAX_OMEGA_RADPS) {
+                omega = (omega > 0.0f ? 1.0f : -1.0f) *
+                        MECANUM_MAX_OMEGA_RADPS * CHASIS_FIXED_SLOW_OMEGA_RATIO;
+            } else {
+                omega = 0.0f;
+            }
+        }
+
+        // ---------------- 十字键定距平移（仅底盘模式） ----------------
+        // 点按（< TAP_MS）走一段固定距离，长按按住期间持续走、松手即停。
+        const bool pad_enabled = (control_mode_get() == CONTROL_MODE_CHASSIS);
+        const bool pad_up    = pad_enabled && (btn1 & PS2_BTN_UP)    != 0;
+        const bool pad_down  = pad_enabled && (btn1 & PS2_BTN_DOWN)  != 0;
+        const bool pad_left  = pad_enabled && (btn1 & PS2_BTN_LEFT)  != 0;
+        const bool pad_right = pad_enabled && (btn1 & PS2_BTN_RIGHT) != 0;
+        const bool pad_active = pad_up || pad_down || pad_left || pad_right;
+
+        if (pad_active) {
+            if (!pad_was_active) {
+                pad_start_ms = now_ms;   // 新按下：开始计时
+            }
+            // 按住期间不断续期"走到这个时刻"，即持续移动
+            pad_step_until_ms = now_ms + CHASIS_PAD_STEP_MS;
+            // 方向记忆：松杆补完点按步时保持原方向
+            pad_vx_cmd = (pad_up ? 1.0f : 0.0f) - (pad_down ? 1.0f : 0.0f);
+            pad_vy_cmd = (pad_left ? 1.0f : 0.0f) - (pad_right ? 1.0f : 0.0f);
+        } else if (pad_was_active) {
+            // 松开：点按则补完整一步，长按则立即停
+            pad_step_until_ms = (now_ms - pad_start_ms < CHASIS_PAD_TAP_MS)
+                                ? pad_start_ms + CHASIS_PAD_STEP_MS
+                                : now_ms;
+        }
+        pad_was_active = pad_active;
+
+        // 生效判定：按住中，或处于"补完点按"阶段（now < until，用减法做回绕安全比较）
+        const bool pad_driving = pad_active ||
+                                 (static_cast<int32_t>(now_ms - pad_step_until_ms) < 0);
+        if (pad_driving) {
+            // 十字键优先于摇杆；平移期间旋转置零
+            vx    = pad_vx_cmd * CHASIS_PAD_SPEED_MPS;
+            vy    = pad_vy_cmd * CHASIS_PAD_SPEED_MPS;
+            omega = 0.0f;
         }
 
         // ---------------- 模式门控 ----------------
@@ -73,8 +144,9 @@ void ChasisControlTask::run() {
 
         // 量纲换算：轮子线速度 [m/s] -> 速度指令 [0 ~ MOTOR_CMD_MAX]。
         // MECANUM_MAX_SPEED 是满量程轮速，对应 100% 占空比；
-        // 慢速模式再整体乘一个系数（平移和旋转一起降速）。
-        const float speed_factor = slow_mode ? CHASIS_SLOW_MODE_SCALE : 1.0f;
+        // 中速档（speed_level==1）整体乘一个系数（平移和旋转一起降速）；
+        // 固定慢速档（==2）的速度已在上面直接按档位速度生成，不再缩放。
+        const float speed_factor = (speed_level == 1U) ? CHASIS_SLOW_MODE_SCALE : 1.0f;
         const float cmd_scale = static_cast<float>(MOTOR_CMD_MAX) / MECANUM_MAX_SPEED * speed_factor;
 
         // 设置轮子速度。驱动被 L2 关断时，Motor::set_wheel_speed() 内部会自动按 0 输出，
