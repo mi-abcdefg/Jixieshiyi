@@ -39,6 +39,22 @@ extern "C" {
 #define MECANUM_MAX_OMEGA_RADPS           (MECANUM_MAX_SPEED / \
                                            (MECANUM_OMEGA_SCALE * (MECANUM_CHASSIS_LENGTH_M + MECANUM_CHASSIS_WIDTH_M)))
 
+// ---------------- 阻力扭矩补偿（前馈，加在解算输出的轮速上） ----------------
+// 传动系统存在静摩擦：占空比低于阈值时车轮完全不动，表现为小油门无响应、
+// 起步迟钝。解算完成后按各轮速度方向叠加一个"恰好克服静摩擦"的等效轮速，
+// 把死区线性化——推杆即动、过零即时反向，不再有起动力矩死区。
+//
+// 标定方法：车放在地上，逐步加大油门到四轮刚好开始转动，记下该时刻的
+// 占空比 duty(%)，换算：COMP_MPS = duty / 100 × MECANUM_MAX_SPEED。
+// 例：6% 占空比起步 → 0.12f。取值偏小无害（只是补偿不足），偏大则小油门起步偏猛。
+// 注意：补偿以 m/s 参与解算输出，后续慢速模式的换算会等比例作用到补偿上
+// （慢速模式下补偿随之减弱，若把慢速比例调得很小需复核补偿是否仍然够用）。
+#define MECANUM_FRICTION_COMP_MPS         0.12f
+
+// 速度比例补偿项（可选，默认关闭）：随轮速线性增加的附加前馈，单位同上
+// （满速时的附加量），用于补偿随转速增大的粘性摩擦。开环下难以标定，保持 0 即可。
+#define MECANUM_FRICTION_KV_MPS           0.0f
+
 // 轮子编号约定：FL=前左、FR=前右、BL=后左、BR=后右
 #define MECANUM_WHEEL_FL                  0U
 #define MECANUM_WHEEL_FR                  1U

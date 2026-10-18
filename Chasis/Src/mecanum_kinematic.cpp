@@ -50,4 +50,35 @@ void mecanum_get_wheel_speeds(float vx,
             wheel_speeds[i] *= scale;
         }
     }
+
+    // 阻力扭矩补偿（前馈）：按各轮速度方向叠加"克服静摩擦"的等效轮速。
+    // 轮速为 0（摇杆回中）时不补偿，车不会自己爬行；补偿量含速度比例项。
+    for (uint8_t i = 0U; i < 4U; ++i)
+    {
+        const float comp = MECANUM_FRICTION_COMP_MPS +
+                           MECANUM_FRICTION_KV_MPS *
+                           (std::fabs(wheel_speeds[i]) / MECANUM_MAX_SPEED);
+        if (wheel_speeds[i] > 0.0f)
+        {
+            wheel_speeds[i] += comp;
+        }
+        else if (wheel_speeds[i] < 0.0f)
+        {
+            wheel_speeds[i] -= comp;
+        }
+    }
+
+    // 补偿后的二次限幅：保证任何轮速都不超满量程（下游按满量程换算占空比，
+    // 电机驱动虽对上限有夹取，但在这里夹齐可避免四个轮子被截断的程度不一致）。
+    for (uint8_t i = 0U; i < 4U; ++i)
+    {
+        if (wheel_speeds[i] > MECANUM_MAX_SPEED)
+        {
+            wheel_speeds[i] = MECANUM_MAX_SPEED;
+        }
+        else if (wheel_speeds[i] < -MECANUM_MAX_SPEED)
+        {
+            wheel_speeds[i] = -MECANUM_MAX_SPEED;
+        }
+    }
 }
