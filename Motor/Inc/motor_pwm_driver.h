@@ -41,19 +41,19 @@
  * 把对应的一项从 0 改成 1 即可，软件会把该轮的速度指令取反。
  * 顺序与 motor_set_wheel_speed() 的参数一致：FL(前左), FR(前右), BL(后左), BR(后右)
  */
-/*
+
 //A车后右轮子需翻转
 #define MOTOR_INVERT_FL           0
 #define MOTOR_INVERT_FR           0
 #define MOTOR_INVERT_BL           0
 #define MOTOR_INVERT_BR           1
-*/
+/*
 //B车后右轮子、后左轮子需翻转
 #define MOTOR_INVERT_FL           0
 #define MOTOR_INVERT_FR           0
 #define MOTOR_INVERT_BL           1
 #define MOTOR_INVERT_BR           1
-
+*/
 #ifdef __cplusplus
 class Motor {
 public:
