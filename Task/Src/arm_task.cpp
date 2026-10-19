@@ -51,6 +51,8 @@ namespace {
         uint16_t pressed = 0;
         if (btn1 & PS2_BTN_SELECT)  pressed |= GAMEPAD_SELECT;
         if (btn1 & PS2_BTN_LEFT)    pressed |= GAMEPAD_PAD_LEFT;
+        if (btn2 & PS2_BTN_L1)       pressed |= GAMEPAD_L1;
+        if (btn2 & PS2_BTN_L2)       pressed |= GAMEPAD_L2;
         if (btn2 & PS2_BTN_TRIANGLE) pressed |= GAMEPAD_TRIANGLE;
         if (btn2 & PS2_BTN_CIRCLE)   pressed |= GAMEPAD_CIRCLE;
         if (btn2 & PS2_BTN_CROSS)    pressed |= GAMEPAD_CROSS;

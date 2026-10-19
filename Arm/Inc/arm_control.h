@@ -48,6 +48,18 @@ bool arm_get_pose(ArmPose_t *pose);
  */
 bool arm_set_gripper(float angle_deg);
 
+/**
+ * @brief 机械臂整体卸力/恢复（卸力 = 四路舵机停止输出脉冲，无保持力矩）
+ *
+ * 卸力期间所有关节写入被拒绝；恢复后自动回到卸力前姿态。
+ */
+void arm_set_torque_enabled(bool enabled);
+
+/**
+ * @brief 当前是否处于有力状态（true = 正常输出）
+ */
+bool arm_get_torque_enabled(void);
+
 #ifdef __cplusplus
 }
 #endif

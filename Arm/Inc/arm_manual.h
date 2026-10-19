@@ -30,6 +30,11 @@
 #define ARM_MANUAL_DEADZONE          0.02f  // 归一化输入死区（解码层已有 ±10 原始死区）
 #define ARM_MANUAL_MAX_DT_MS         100U   // 单周期dt上限，防长阻塞后步长突跳
 
+/* ------------------------------ 调速档位 ------------------------------ */
+/* L1（机械臂模式）在两档间循环：0 = 快速（上表速度），1 = 慢速（各关节
+ * 角速度 × ARM_MANUAL_SLOW_DPS_SCALE）。上电默认快速。 */
+#define ARM_MANUAL_SLOW_DPS_SCALE    0.5f
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,6 +43,11 @@ extern "C" {
  * @brief 初始化点动模块（须在 servo_init() 之后调用）
  */
 void arm_manual_init(void);
+
+/**
+ * @brief 点动调速档循环切换（快 → 慢 → 快……），由决策层在 L1 边沿调用
+ */
+void arm_manual_cycle_speed_level(void);
 
 /**
  * @brief 周期调用（建议 20ms）：按各轴杆量驱动对应关节

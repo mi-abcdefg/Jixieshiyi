@@ -26,16 +26,20 @@ void ChasisControlTask::run() {
         const uint8_t btn1 = ps2_get_btn1();
         const uint8_t btn2 = ps2_get_btn2();
 
-        // ---------------- L2：电机驱动通断（上电默认关断） ----------------
+        // ---------------- L2 / L1：仅底盘模式生效 ----------------
+        // 机械臂模式下这对键交给机械臂子系统（L2 卸力、L1 点动调速），
+        // 两个任务各自检测边沿、各自按模式门控，同一时刻只有一方响应。
+        const bool chassis_mode = (control_mode_get() == CONTROL_MODE_CHASSIS);
+
         const bool l2_pressed = (btn2 & PS2_BTN_L2) != 0;
-        if (l2_pressed && !l2_last_pressed) {
+        if (l2_pressed && !l2_last_pressed && chassis_mode) {
             motor_toggle_enable();
         }
         l2_last_pressed = l2_pressed;
 
         // ---------------- L1：三档调速循环（快 → 中 → 固定慢速） ----------------
         const bool l1_pressed = (btn2 & PS2_BTN_L1) != 0;
-        if (l1_pressed && !l1_last_pressed) {
+        if (l1_pressed && !l1_last_pressed && chassis_mode) {
             speed_level = static_cast<uint8_t>((speed_level + 1U) % 3U);
         }
         l1_last_pressed = l1_pressed;

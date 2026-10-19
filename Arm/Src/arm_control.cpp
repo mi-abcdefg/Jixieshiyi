@@ -55,6 +55,16 @@ bool arm_set_gripper(float angle_deg)
     return arm_set_pose(&pose);
 }
 
+void arm_set_torque_enabled(bool enabled)
+{
+    servo_set_torque_enabled(enabled);
+}
+
+bool arm_get_torque_enabled(void)
+{
+    return servo_is_torque_enabled();
+}
+
 bool arm_get_pose(ArmPose_t *pose)
 {
     if (pose == NULL)

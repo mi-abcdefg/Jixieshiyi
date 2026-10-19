@@ -71,6 +71,21 @@ bool servo_get_commanded_angle(ServoId_t servo, float *angle_deg);
  */
 bool servo_get_angle_range(ServoId_t servo, float *min_deg, float *max_deg);
 
+/**
+ * @brief 机械臂整体卸力/恢复
+ *
+ * 卸力：四路 CCR 全部清零，20ms 周期内不再输出任何有效脉冲，舵机
+ * 失去保持力矩（可徒手掰动）。卸力期间 servo_set_pulse/set_angle
+ * 一律拒绝写入，防止点动或动作把舵机悄悄重新上力。
+ * 恢复：按卸力前记录的命令角重写脉宽，臂回到卸力前的姿态。
+ */
+void servo_set_torque_enabled(bool enabled);
+
+/**
+ * @brief 当前是否处于有力状态（true = 正常输出脉冲）
+ */
+bool servo_is_torque_enabled(void);
+
 #ifdef __cplusplus
 }
 #endif

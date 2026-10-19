@@ -6,6 +6,7 @@
 
 #include "arm_action.h"
 #include "arm_control.h"
+#include "arm_manual.h"
 #include "gamepad.h"
 #include "control_mode.h"
 
@@ -46,6 +47,29 @@ void robot_control_update(uint32_t now_ms)
         gripper_at_close = !gripper_at_close;
         (void)arm_set_gripper(gripper_at_close ? ARM_GRIPPER_CLOSE_DEG
                                                : ARM_GRIPPER_OPEN_DEG);
+        return;
+    }
+
+    /* L2：机械臂卸力 ⇄ 恢复。
+     * 卸力时若动作正在执行先取消（动作每拍写舵机会被卸力保护拒绝，
+     * 会让状态机误入 ERROR）；恢复后臂自动回到卸力前姿态。 */
+    if ((events & GAMEPAD_L2) != 0U) {
+        if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
+            arm_action_cancel();
+        }
+        arm_set_torque_enabled(!arm_get_torque_enabled());
+        return;
+    }
+
+    /* 卸力状态下其余按键全部忽略：动作启动/夹爪切换都会因舵机写入
+     * 被拒绝而无效，提前拦截可避免夹爪档位记忆等状态被悄悄改变。 */
+    if (!arm_get_torque_enabled()) {
+        return;
+    }
+
+    /* L1：点动调速两档循环（快 ⇄ 慢），仅作用于手动点动，不影响动作序列 */
+    if ((events & GAMEPAD_L1) != 0U) {
+        arm_manual_cycle_speed_level();
         return;
     }
 

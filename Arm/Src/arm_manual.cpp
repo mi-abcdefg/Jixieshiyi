@@ -13,10 +13,17 @@
 /* 内部状态 */
 static uint32_t last_update_ms = 0U;
 static bool has_last_update = false;
+static uint8_t speed_level = 0U;   // 0=快速 1=慢速；上电默认快速
 
 void arm_manual_init(void)
 {
     has_last_update = false;
+    speed_level = 0U;
+}
+
+void arm_manual_cycle_speed_level(void)
+{
+    speed_level = static_cast<uint8_t>((speed_level + 1U) % 2U);
 }
 
 /* 单关节步进：按杆量积分一个周期，并夹到该关节的命令角域内 */
@@ -29,7 +36,10 @@ static void jog_joint(float *angle_deg, float norm, float max_dps,
         return;
     }
 
-    *angle_deg += norm * max_dps * dt_s;
+    /* 慢速档整体降速 */
+    const float speed_scale = (speed_level == 1U) ? ARM_MANUAL_SLOW_DPS_SCALE : 1.0f;
+
+    *angle_deg += norm * max_dps * speed_scale * dt_s;
     if (*angle_deg > max_deg)
     {
         *angle_deg = max_deg;
