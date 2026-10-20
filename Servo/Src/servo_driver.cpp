@@ -54,13 +54,14 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         false
     },
 
-    /* 肩关节：第一段连杆，臂长 11cm（PB7，SG90）。实测安装方向相反，reversed 翻转 */
+    /* 肩关节：第一段连杆，臂长 11cm（PB7，SG90）。实测安装方向相反，reversed 翻转
+     * 两端各留 15° 不达极限（域 [15°,165°]，90° 仍为中位脉宽 1500µs）。 */
     {
         TIM_CHANNEL_2,
         500,
         2500,
-        0.0f,
-        180.0f,
+        15.0f,
+        165.0f,
         90.0f,
         true
     },
@@ -81,13 +82,14 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         true
     },
 
-    /* 夹爪（PB6，SG90） */
+    /* 夹爪（PB6，SG90）
+     * 两端各留 15° 不达极限（域 [15°,165°]，90° 仍为中位脉宽 1500µs）。 */
     {
         TIM_CHANNEL_1,
         500,
         2500,
-        0.0f,
-        180.0f,
+        15.0f,
+        165.0f,
         90.0f,
         false
     }
