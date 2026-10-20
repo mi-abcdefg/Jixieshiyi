@@ -57,7 +57,14 @@ typedef struct {
 typedef enum {
     ARM_KF_ID_BASKET_HIGH = 0,   // 篮上高点：篮子上方的过渡位
     ARM_KF_ID_OUTER_HIGH,        // 外侧高点：接近初始位的过渡位
-    ARM_KF_ID_RETRACT,           // 最小收缩位（占位待标定）
+    ARM_KF_ID_RETRACT,           // 最小收缩位 (0,165,0,合)
+    ARM_KF_ID_BASKET_IN,         // 篮内点 (175,70,25,开)：篮内作业位
+    ARM_KF_ID_PICKUP_LOW,        // 拾取低点 (90,75,40,开)：篮外低位拾取位
+    ARM_KF_ID_ESCAPE_LINKS,      // 脱离阶段1：大臂小臂升到中点（底座保持）
+    ARM_KF_ID_ESCAPE_BASE,       // 脱离阶段2：底座转到中点（连杆保持）
+    ARM_KF_ID_HOME,              // HOME 位形 (90,90,90)
+    ARM_KF_ID_HOME_OPEN,         // HOME 位形 + 夹爪张开（占位动作用）
+    ARM_KF_ID_HOME_CLOSE,        // HOME 位形 + 夹爪闭合（占位动作用）
     ARM_KF_ID_COUNT
 } ArmKeyframeId_t;
 

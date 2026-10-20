@@ -93,7 +93,7 @@ void robot_control_update(uint32_t now_ms)
     if ((events & GAMEPAD_PAD_UP) != 0U) {
         action_id = ARM_ACTION_RETRACT;
     } else if ((events & GAMEPAD_CROSS) != 0U) {
-        action_id = ARM_ACTION_PLACE;
+        action_id = ARM_ACTION_TRANSIT;
     } else if ((events & GAMEPAD_TRIANGLE) != 0U) {
         action_id = ARM_ACTION_GRAB_MODE_1;
     } else if ((events & GAMEPAD_SQUARE) != 0U) {

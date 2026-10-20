@@ -26,9 +26,11 @@
  * @brief 动作编号
  */
 typedef enum {
-    ARM_ACTION_RETRACT = 0,   // 回收缩：条件入口（篮上/外侧高点）→ 收缩关键帧
+    ARM_ACTION_RETRACT = 0,   // 回收缩：篮内经篮上高点、篮外经外侧高点 → 收缩位
     ARM_ACTION_ESCAPE,        // 脱离伸展：大臂小臂升到中点 → 底座转到中点
-    ARM_ACTION_PLACE,         // 固定放置（占位）
+    ARM_ACTION_TRANSIT,       // 篮内外转移：篮外 经外侧→篮上高点 到篮内点；
+                              //         篮内 经篮上→外侧高点 到拾取低点
+    ARM_ACTION_PLACE,         // 固定放置（占位，暂无按键绑定）
     ARM_ACTION_GRAB_MODE_1,   // 抓取模式1（占位）
     ARM_ACTION_GRAB_MODE_3,   // 抓取模式3（占位）
     ARM_ACTION_COUNT          // 动作总数
