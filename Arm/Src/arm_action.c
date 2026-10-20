@@ -6,9 +6,9 @@
 //     即该关节保持不动），三关节以各自快速档角速度步进逼近；
 //   - 三关节全部到位后，若帧内夹爪状态非"未定义"则切换夹爪，
 //     随后停留 ARM_ACTION_HOLD_MS 进入下一帧；
-//   - 条件入口（cond_entry）：启动时读底座当前用户角，≥
-//     ARM_ACTION_BASKET_USER_THR 判为"篮内区"，经篮上高点过渡；
-//     否则判为"篮外区"，经外侧高点过渡。过渡帧走完后进入正式步骤表。
+//   - 条件入口（cond_entry）：启动时按当前姿态判断"篮内/篮外"——
+//     底座用户角 ≥160° 且肩用户角 ≤100° 判为篮内区，经篮上高点过渡；
+//     否则判为篮外区，经外侧高点过渡。过渡帧走完后进入正式步骤表。
 //
 
 #include "arm_action.h"
@@ -21,8 +21,15 @@
 
 /* ------------------------------ 引擎参数 ------------------------------ */
 #define ARM_ACTION_HOLD_MS          300U    // 关键帧到位后的停留时间
-#define ARM_ACTION_BASKET_USER_THR  135.0f  // 底座用户角阈值：≥ 判为篮内区
 #define ARM_ACTION_TICK_S           0.020f  // 引擎推进周期 [s]，须与 ArmTask 周期一致
+
+/* ------------------------- 篮内区判定（暂定值） -------------------------
+ * 机械臂在机器人右侧工作，受舵机 180° 行程限制，需能转往背后篮子方向。
+ * 判定（2026/10/19 约定，暂定值待实车复核）：
+ *   底座用户角 ≥ 160° 且 肩用户角 ≤ 100°  →  机械臂被围在篮子里；
+ *   其余姿态统称篮子外侧。 */
+#define ARM_IN_BASKET_BASE_USER_MIN      160.0f
+#define ARM_IN_BASKET_SHOULDER_USER_MAX  100.0f
 
 /* --------------------------- 动作定义（数据） --------------------------- */
 
@@ -109,16 +116,19 @@ static const ArmKeyframe_t *current_keyframe(void)
     return &current_seq->steps[step_index];
 }
 
-/* 底座当前是否处于篮内区（用户角阈值判断，见宏注释） */
+/* 篮内区判定：底座用户角 ≥ 160° 且 肩用户角 ≤ 100°（暂定值，见宏注释） */
 bool arm_action_in_basket_zone(void)
 {
-    float base_cmd = 0.0f;
-    if (!servo_get_commanded_angle(SERVO_BASE_Z, &base_cmd))
+    float base_cmd = 0.0f, link1_cmd = 0.0f;
+    if (!servo_get_commanded_angle(SERVO_BASE_Z, &base_cmd) ||
+        !servo_get_commanded_angle(SERVO_LINK_1, &link1_cmd))
     {
         return false;
     }
-    const float base_user = ARM_UA_BASE_FROM_CMD(base_cmd);
-    return base_user >= ARM_ACTION_BASKET_USER_THR;
+    const float base_user     = ARM_UA_BASE_FROM_CMD(base_cmd);
+    const float shoulder_user = ARM_UA_LINK1_FROM_CMD(link1_cmd);
+    return (base_user >= ARM_IN_BASKET_BASE_USER_MIN) &&
+           (shoulder_user <= ARM_IN_BASKET_SHOULDER_USER_MAX);
 }
 
 /* 开始逼近一个关键帧：换算目标（KEEP 字段保持当前命令角） */

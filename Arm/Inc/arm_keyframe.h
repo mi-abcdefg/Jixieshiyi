@@ -26,8 +26,9 @@
 #define ARM_UA_LINK1_TO_CMD(u)   (u)
 #define ARM_UA_LINK2_TO_CMD(u)   ((u) - 120.0f)
 
-/* 命令角 → 用户角（底座；篮内/篮外区判断用） */
-#define ARM_UA_BASE_FROM_CMD(c)  (270.0f - (c))
+/* 命令角 → 用户角（篮内/篮外区判断用） */
+#define ARM_UA_BASE_FROM_CMD(c)   (270.0f - (c))
+#define ARM_UA_LINK1_FROM_CMD(c)  (c)
 
 /* 关键帧字段哨兵：保持当前值 */
 #define ARM_KF_KEEP              255.0f
