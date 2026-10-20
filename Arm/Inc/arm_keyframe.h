@@ -22,18 +22,19 @@
 #include "gripper.h"    // GripperState_t（夹爪以状态参与关键帧）
 
 /* ------------------------- 用户角 → 命令角 -------------------------
- * 各关节的"用户角 0 在哪一端"以实机实测为准（2026/10/19 实测修订）：
- *   舵机1 底座：左推极限 = user 0（方位角 270），右推极限 = user 180（90）
+ * 各关节的"用户角 0 在哪一端"以实机实测为准（2026/10/20 × 键实测修订）：
+ *   舵机1 底座：实测镜像——左推极限 = user 180（cmd 270），
+ *               右推极限 = user 0（cmd 90）
  *   舵机2 肩：  实测与点动约定镜像——下推极限 = user 180（cmd 0），
  *               上推极限 = user 0（cmd 180）
  *   舵机3 肘：  下推极限 = user 0（cmd −120），上推极限 = user 180（+60）
  *   舵机4 爪：  以状态描述（开/合/不定义），不使用角度。 */
-#define ARM_UA_BASE_TO_CMD(u)    (270.0f - (u))
+#define ARM_UA_BASE_TO_CMD(u)    (90.0f + (u))
 #define ARM_UA_LINK1_TO_CMD(u)   (180.0f - (u))
 #define ARM_UA_LINK2_TO_CMD(u)   ((u) - 120.0f)
 
 /* 命令角 → 用户角（篮内/篮外区判断用） */
-#define ARM_UA_BASE_FROM_CMD(c)   (270.0f - (c))
+#define ARM_UA_BASE_FROM_CMD(c)   ((c) - 90.0f)
 #define ARM_UA_LINK1_FROM_CMD(c)  (180.0f - (c))
 
 /* 关键帧字段哨兵：保持当前值 */
