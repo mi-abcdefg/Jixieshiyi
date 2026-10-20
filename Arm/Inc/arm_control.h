@@ -1,11 +1,11 @@
 //
 // 机械臂关节空间控制：底座/肩/肘三个关节角 → 对应舵机（夹爪除外）
 //
-// 本模块是三个主关节的下发/读回入口：动作引擎（arm_action）和手动点动
-// （arm_manual）通过 arm_set_pose() / arm_get_pose() 操作关节，不直接碰
-// 舵机驱动。夹爪不经过本模块——它是独立的三态模块（见 gripper.h）。
+// 本模块是三个主关节的下发/读回入口：手动点动（arm_manual）通过
+// arm_set_pose() / arm_get_pose() 操作关节，不直接碰舵机驱动。
+// 夹爪不经过本模块——它是独立模块（见 gripper.h）。
 //
-// 头文件按 C 兼容写（arm_action.c 是 C 文件，会 include 本头文件）。
+// 头文件按 C 兼容写（工程约定：机械臂层头文件保持 C 兼容）。
 //
 
 #ifndef CRTC2026_ROBOTA_ARM_CONTROL_H

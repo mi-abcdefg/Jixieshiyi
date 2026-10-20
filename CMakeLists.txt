@@ -39,10 +39,6 @@ add_executable(${CMAKE_PROJECT_NAME}
         Motor/Src/motor_pwm_driver.cpp
         Servo/Inc/servo_driver.h
         Servo/Src/servo_driver.cpp
-        Arm/Inc/arm_action.h
-        Arm/Src/arm_action.c
-        Arm/Inc/arm_keyframe.h
-        Arm/Src/arm_keyframe.c
         Arm/Inc/gripper.h
         Arm/Src/gripper.cpp
         Arm/Inc/arm_control.h
@@ -51,10 +47,6 @@ add_executable(${CMAKE_PROJECT_NAME}
         Arm/Src/arm_ik.cpp
         Arm/Inc/arm_manual.h
         Arm/Src/arm_manual.cpp
-        Arm/Inc/gamepad.h
-        Arm/Src/gamepad.cpp
-        Arm/Inc/robot_control.h
-        Arm/Src/robot_control.cpp
         ControlMode/Inc/control_mode.h
         ControlMode/Src/control_mode.cpp
         Task/Inc/chasis_control_task.h
