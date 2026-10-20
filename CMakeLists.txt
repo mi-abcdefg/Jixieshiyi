@@ -41,6 +41,10 @@ add_executable(${CMAKE_PROJECT_NAME}
         Servo/Src/servo_driver.cpp
         Arm/Inc/arm_action.h
         Arm/Src/arm_action.c
+        Arm/Inc/arm_keyframe.h
+        Arm/Src/arm_keyframe.c
+        Arm/Inc/gripper.h
+        Arm/Src/gripper.cpp
         Arm/Inc/arm_control.h
         Arm/Src/arm_control.cpp
         Arm/Inc/arm_ik.h

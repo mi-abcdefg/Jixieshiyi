@@ -1,478 +1,252 @@
 //
-// 机械臂动作序列状态机实现
+// 机械臂动作引擎实现（条件路径 + 关键帧序列）
 //
-// 移植自 CRTC_RobotArm 工程 arm_action.c。保持 C 语言编译（动作表使用
-// C99 指定初始化器）。相对原工程的改动：
-//   - 函数名 snake_case 化（与工程导出风格一致）；
-//   - 姿态读回改走 arm_get_pose()，不再直接读舵机层。
-// 动作序列的角度全部是占位值，实物标定时只改下面的步骤表。
-// 角度约定（与 servo_driver 配置表一致，2026/10/17 零位标定后命令角=物理角）：
-//   base_z_deg = 相对 +X 逆时针方位角，180° = 臂朝 -X（车头方向）
-//   link1_deg  = 肩连杆相对水平的仰角，90° = 竖直向上
-//   link2_deg  = 肘相对肩连杆的夹角，域 [-120°, 60°]；-30° 对应绝对仰角 60°
-// 占位期所有步骤统一为 HOME 位形（180/90/-30，即上电中位），触发动作
-// 只会平稳回位不乱挥；标定时按"接近→闭合→抬起"逐步改各步骤姿态。
+// 推进细节：
+//   - 关键帧字段先换算为命令角目标（ARM_KF_KEEP 字段取当前命令角，
+//     即该关节保持不动），三关节以各自快速档角速度步进逼近；
+//   - 三关节全部到位后，若帧内夹爪状态非"未定义"则切换夹爪，
+//     随后停留 ARM_ACTION_HOLD_MS 进入下一帧；
+//   - 条件入口（cond_entry）：启动时读底座当前用户角，≥
+//     ARM_ACTION_BASKET_USER_THR 判为"篮内区"，经篮上高点过渡；
+//     否则判为"篮外区"，经外侧高点过渡。过渡帧走完后进入正式步骤表。
 //
 
 #include "arm_action.h"
+#include "arm_keyframe.h"
+#include "gripper.h"
+#include "arm_manual.h"    // 各关节快速档角速度宏（与点动同一数据源）
 #include "arm_control.h"
-
+#include "servo_driver.h"
 #include <stddef.h>
 
-/**
- * @brief 动作中的一个关键步骤
- */
-typedef struct {
-    ArmPose_t pose;     // 本步骤的机械臂目标姿态
-    uint32_t move_ms;   // 最短运动时间，实际时间还受速度上限约束
-    uint32_t hold_ms;   // 运动结束后的保持时间
-} ArmActionStep_t;
+/* ------------------------------ 引擎参数 ------------------------------ */
+#define ARM_ACTION_HOLD_MS          300U    // 关键帧到位后的停留时间
+#define ARM_ACTION_BASKET_USER_THR  135.0f  // 底座用户角阈值：≥ 判为篮内区
+#define ARM_ACTION_TICK_S           0.020f  // 引擎推进周期 [s]，须与 ArmTask 周期一致
 
-#define ARM_COMMAND_PERIOD_MS 20U
-#define ARM_MAX_COMMAND_SPEED_DPS 20.0f
+/* --------------------------- 动作定义（数据） --------------------------- */
 
-/* 起步及终点速度为零；曲线峰值速度为平均速度的 1.5 倍。 */
-static float ArmAction_Smoothstep(float u)
-{
-    return u * u * (3.0f - 2.0f * u);
-}
+/* 回收缩：条件入口之后到达最小收缩位（角度占位，待标定） */
+static const ArmKeyframe_t retract_steps[] = {
+    { 90.0f, 30.0f, 30.0f, GRIPPER_UNDEF },
+};
 
-static float ArmAction_Abs(float x)
-{
-    return x < 0.0f ? -x : x;
-}
+/* 脱离伸展：大臂小臂升到行程中点（用户角 90）→ 底座转到行程中点 */
+static const ArmKeyframe_t escape_steps[] = {
+    { ARM_KF_KEEP, 90.0f, 90.0f, GRIPPER_UNDEF },
+    { 90.0f, ARM_KF_KEEP, ARM_KF_KEEP, GRIPPER_UNDEF },
+};
 
-/**
- * @brief 一套完整动作序列
- */
-typedef struct {
-    const ArmActionStep_t *steps;   // 动作步骤数组
-    uint32_t steps_count;           // 动作包含的步骤数量
-} ArmActionSequence_t;
+/* 固定放置：接近 → 张开 → 返回（位形占位，均为 HOME 用户角 90,90,90） */
+static const ArmKeyframe_t home_kf      = { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF };
+static const ArmKeyframe_t home_open_kf = { 90.0f, 90.0f, 90.0f, GRIPPER_OPEN };
 
-/**
- * @brief 计算数组元素数量
- */
+static const ArmKeyframe_t place_steps[] = {
+    { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF },
+    { 90.0f, 90.0f, 90.0f, GRIPPER_OPEN },
+    { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF },
+};
+
+/* 抓取模式：接近 → 闭合 → 抬起（位形占位） */
+static const ArmKeyframe_t grab_close_kf = { 90.0f, 90.0f, 90.0f, GRIPPER_CLOSE };
+
+static const ArmKeyframe_t grab1_steps[] = {
+    { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF },
+    { 90.0f, 90.0f, 90.0f, GRIPPER_CLOSE },
+    { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF },
+};
+
+static const ArmKeyframe_t grab3_steps[] = {
+    { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF },
+    { 90.0f, 90.0f, 90.0f, GRIPPER_CLOSE },
+    { 90.0f, 90.0f, 90.0f, GRIPPER_UNDEF },
+};
+
 #define ARRAY_SIZE(array) \
-    ((uint32_t)(sizeof(array) / sizeof((array)[0])))
-
-/*
- * 抓取模式1
- *
- * 当前所有角度均为占位值。
- * 实物到手后再标定真实姿态。
- */
-static const ArmActionStep_t grab_mode_1_steps[] =
-{
-    /* 步骤0：等待姿态 */
-    {
-        .pose =
-        {
-            .gripper_deg = 45.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤1：接近物块 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    },
-
-    /* 步骤2：闭合夹爪 */
-    {
-        .pose =
-        {
-            .gripper_deg = 45.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤3：抬起物块 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    }
-};
-
-static const ArmActionStep_t grab_mode_2_steps[] =
-{
-    /* 步骤0：等待姿态 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤1：接近物块 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    },
-
-    /* 步骤2：闭合夹爪 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤3：抬起物块 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    }
-};
-
-static const ArmActionStep_t grab_mode_3_steps[] =
-{
-    /* 步骤0：等待姿态 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤1：接近物块 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    },
-
-    /* 步骤2：闭合夹爪 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤3：抬起物块 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    }
-};
-
-/*
- * 固定放置动作
- */
-static const ArmActionStep_t place_steps[] =
-{
-    /* 步骤0：移动到放置姿态 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    },
-
-    /* 步骤1：打开夹爪 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 500
-    },
-
-    /* 步骤2：返回等待姿态 */
-    {
-        .pose =
-        {
-            .gripper_deg = 90.0f,
-            .link1_deg   = 90.0f,
-            .link2_deg   = -30.0f,
-            .base_z_deg  = 180.0f
-        },
-        .move_ms = 1200U,
-        .hold_ms = 1000
-    }
-};
+    ((uint8_t)(sizeof(array) / sizeof((array)[0])))
 
 /**
- * @brief 所有动作的索引表
- * 指定初始化器按枚举值对号入座（C99 语法，本文件必须保持 .c 编译的原因）。
+ * @brief 动作序列定义
+ * @note  cond_entry = true 时，启动先按当前姿态插入"高点"过渡帧
  */
-static const ArmActionSequence_t action_sequences[ARM_ACTION_COUNT] = {
-    [ARM_ACTION_GRAB_MODE_1] = {
-        .steps = grab_mode_1_steps,
-        .steps_count = ARRAY_SIZE(grab_mode_1_steps)
-    },
-    [ARM_ACTION_GRAB_MODE_2] = {
-        .steps = grab_mode_2_steps,
-        .steps_count = ARRAY_SIZE(grab_mode_2_steps)
-    },
-    [ARM_ACTION_GRAB_MODE_3] = {
-        .steps = grab_mode_3_steps,
-        .steps_count = ARRAY_SIZE(grab_mode_3_steps)
-    },
-    [ARM_ACTION_PLACE] = {
-        .steps = place_steps,
-        .steps_count = ARRAY_SIZE(place_steps)
-    }
+typedef struct {
+    const ArmKeyframe_t *steps;
+    uint8_t step_count;
+    bool cond_entry;
+} ArmActionSeq_t;
+
+static const ArmActionSeq_t sequences[ARM_ACTION_COUNT] = {
+    [ARM_ACTION_RETRACT]     = { retract_steps, ARRAY_SIZE(retract_steps), true },
+    [ARM_ACTION_ESCAPE]      = { escape_steps,  ARRAY_SIZE(escape_steps),  false },
+    [ARM_ACTION_PLACE]       = { place_steps,   ARRAY_SIZE(place_steps),   false },
+    [ARM_ACTION_GRAB_MODE_1] = { grab1_steps,   ARRAY_SIZE(grab1_steps),   false },
+    [ARM_ACTION_GRAB_MODE_3] = { grab3_steps,   ARRAY_SIZE(grab3_steps),   false },
 };
 
-/*
- * 动作状态机内部变量
- */
+/* --------------------------- 状态机内部变量 --------------------------- */
+
 static ArmActionState_t action_state = ARM_ACTION_STATE_IDLE;
-static const ArmActionSequence_t *current_sequence = NULL;
-static uint32_t current_step_index = 0U;
-static uint32_t step_start_ms = 0U;
-static uint32_t step_move_ms = 0U;
-static uint32_t last_command_ms = 0U;
-static uint32_t arrival_ms = 0U;
-static bool target_sent = false;
-static ArmPose_t step_start_pose;
-static ArmPose_t commanded_pose;
-static bool pose_valid = false;
+static const ArmActionSeq_t *current_seq = NULL;
+static int16_t step_index = -1;        // -1 = 条件过渡帧，>=0 = 正式步骤表下标
+static bool phase_hold = false;        // true = 已到位，正在停留
+static uint32_t phase_start_ms = 0U;
+static float tgt_base = 0.0f, tgt_link1 = 0.0f, tgt_link2 = 0.0f;
+static bool grip_done = false;         // 当前帧夹爪是否已切换
 
-/* 以变化量最大的轴确定同步运动所需时间，避免 smoothstep 峰值超速。 */
-static uint32_t ArmAction_MotionTime(const ArmPose_t *from,
-                                     const ArmPose_t *to, uint32_t requested_ms)
+static bool arm_action_in_basket_zone(void);
+
+/* 取当前帧指针（含条件过渡帧的虚拟下标） */
+static const ArmKeyframe_t *current_keyframe(void)
 {
-    float maximum = ArmAction_Abs(to->gripper_deg - from->gripper_deg);
-    float d = ArmAction_Abs(to->link1_deg - from->link1_deg);
-    if (d > maximum) maximum = d;
-    d = ArmAction_Abs(to->link2_deg - from->link2_deg);
-    if (d > maximum) maximum = d;
-    d = ArmAction_Abs(to->base_z_deg - from->base_z_deg);
-    if (d > maximum) maximum = d;
-
-    /* +0.999f 等价于向上取整，不需要 libm 的 ceilf。 */
-    const uint32_t limited_ms = (uint32_t)(
-        1500.0f * maximum / ARM_MAX_COMMAND_SPEED_DPS + 0.999f);
-    return requested_ms > limited_ms ? requested_ms : limited_ms;
+    if (step_index < 0)
+    {
+        /* 条件过渡帧：按篮内/篮外选择高点 */
+        const ArmKeyframeId_t id =
+            arm_action_in_basket_zone() ? ARM_KF_ID_BASKET_HIGH
+                                        : ARM_KF_ID_OUTER_HIGH;
+        return arm_keyframe_get(id);
+    }
+    return &current_seq->steps[step_index];
 }
 
-static ArmPose_t ArmAction_Interpolate(const ArmPose_t *from,
-                                       const ArmPose_t *to, float s)
+/* 底座当前是否处于篮内区（用户角阈值判断，见宏注释） */
+bool arm_action_in_basket_zone(void)
 {
-    ArmPose_t p;
-    p.gripper_deg = from->gripper_deg +
-                    s * (to->gripper_deg - from->gripper_deg);
-    p.link1_deg = from->link1_deg +
-                  s * (to->link1_deg - from->link1_deg);
-    p.link2_deg = from->link2_deg +
-                  s * (to->link2_deg - from->link2_deg);
-    p.base_z_deg = from->base_z_deg +
-                   s * (to->base_z_deg - from->base_z_deg);
-    return p;
-}
-
-static bool ArmAction_BeginStep(uint32_t now_ms)
-{
-    if (current_sequence == NULL ||
-        current_step_index >= current_sequence->steps_count || !pose_valid)
+    float base_cmd = 0.0f;
+    if (!servo_get_commanded_angle(SERVO_BASE_Z, &base_cmd))
     {
         return false;
     }
-    step_start_pose = commanded_pose;
-    step_start_ms = now_ms;
-    last_command_ms = now_ms;
-    target_sent = false;
-    const ArmActionStep_t *step = &current_sequence->steps[current_step_index];
-    step_move_ms = ArmAction_MotionTime(&step_start_pose, &step->pose,
-                                        step->move_ms);
+    const float base_user = ARM_UA_BASE_FROM_CMD(base_cmd);
+    return base_user >= ARM_ACTION_BASKET_USER_THR;
+}
+
+/* 开始逼近一个关键帧：换算目标（KEEP 字段保持当前命令角） */
+static void begin_keyframe(const ArmKeyframe_t *kf)
+{
+    float base_cmd = 0.0f, link1_cmd = 0.0f, link2_cmd = 0.0f;
+    (void)servo_get_commanded_angle(SERVO_BASE_Z, &base_cmd);
+    (void)servo_get_commanded_angle(SERVO_LINK_1, &link1_cmd);
+    (void)servo_get_commanded_angle(SERVO_LINK_2, &link2_cmd);
+
+    tgt_base  = (kf->base_deg  == ARM_KF_KEEP) ? base_cmd
+                                               : ARM_UA_BASE_TO_CMD(kf->base_deg);
+    tgt_link1 = (kf->link1_deg == ARM_KF_KEEP) ? link1_cmd
+                                               : ARM_UA_LINK1_TO_CMD(kf->link1_deg);
+    tgt_link2 = (kf->link2_deg == ARM_KF_KEEP) ? link2_cmd
+                                               : ARM_UA_LINK2_TO_CMD(kf->link2_deg);
+    grip_done = (kf->gripper == GRIPPER_UNDEF);   // 未定义 = 无夹爪动作
+    phase_hold = false;
+}
+
+/* 单关节朝目标步进；返回是否已到位 */
+static bool step_joint(float *angle_deg, float target, float max_dps, float dt_s)
+{
+    const float remain = target - *angle_deg;
+    const float step = max_dps * dt_s;
+    if (remain > step)  { *angle_deg += step; return false; }
+    if (remain < -step) { *angle_deg -= step; return false; }
+    *angle_deg = target;
     return true;
 }
 
 void arm_action_init(void)
 {
     action_state = ARM_ACTION_STATE_IDLE;
-    current_sequence = NULL;
-    current_step_index = 0U;
-    step_start_ms = 0U;
-    step_move_ms = 0U;
-    last_command_ms = 0U;
-    arrival_ms = 0U;
-    target_sent = false;
-    pose_valid = arm_get_pose(&commanded_pose);
+    current_seq = NULL;
+    step_index = -1;
+    phase_hold = false;
 }
 
 bool arm_action_start(ArmActionId_t action_id, uint32_t now_ms)
 {
     if ((uint32_t)action_id >= (uint32_t)ARM_ACTION_COUNT ||
-        action_state == ARM_ACTION_STATE_RUNNING ||
-        action_state == ARM_ACTION_STATE_ERROR)
+        action_state == ARM_ACTION_STATE_RUNNING)
     {
         return false;
     }
 
-    /* 读回最近一次指令，以便取消后新动作从当前指令位置接续。 */
-    pose_valid = arm_get_pose(&commanded_pose);
-    if (!pose_valid)
-    {
-        action_state = ARM_ACTION_STATE_ERROR;
-        return false;
-    }
-    current_sequence = &action_sequences[action_id];
-    current_step_index = 0U;
+    current_seq = &sequences[action_id];
+    step_index = current_seq->cond_entry ? -1 : 0;
+    phase_hold = false;
+    begin_keyframe(current_keyframe());
+    phase_start_ms = now_ms;
     action_state = ARM_ACTION_STATE_RUNNING;
-    if (!ArmAction_BeginStep(now_ms))
-    {
-        current_sequence = NULL;
-        action_state = ARM_ACTION_STATE_ERROR;
-        return false;
-    }
     return true;
-}
-
-void arm_action_update(uint32_t now_ms)
-{
-    if (action_state != ARM_ACTION_STATE_RUNNING) return;
-    if (current_sequence == NULL ||
-        current_step_index >= current_sequence->steps_count)
-    {
-        action_state = ARM_ACTION_STATE_ERROR;
-        current_sequence = NULL;
-        return;
-    }
-
-    const ArmActionStep_t *step = &current_sequence->steps[current_step_index];
-    const uint32_t elapsed_ms = (uint32_t)(now_ms - step_start_ms);
-    if (elapsed_ms < step_move_ms)
-    {
-        if ((uint32_t)(now_ms - last_command_ms) < ARM_COMMAND_PERIOD_MS)
-            return;
-        float u = (float)elapsed_ms / (float)step_move_ms;
-        ArmPose_t interpolated = ArmAction_Interpolate(
-            &step_start_pose, &step->pose, ArmAction_Smoothstep(u));
-        if (!arm_set_pose(&interpolated))
-        {
-            action_state = ARM_ACTION_STATE_ERROR;
-            current_sequence = NULL;
-            return;
-        }
-        commanded_pose = interpolated;
-        last_command_ms = now_ms;
-        return;
-    }
-
-    /* 运动结束后显式输出精确终点，再开始计算 hold_ms。 */
-    if (!target_sent)
-    {
-        if (!arm_set_pose(&step->pose))
-        {
-            action_state = ARM_ACTION_STATE_ERROR;
-            current_sequence = NULL;
-            return;
-        }
-        commanded_pose = step->pose;
-        last_command_ms = now_ms;
-        arrival_ms = now_ms;
-        target_sent = true;
-    }
-    if ((uint32_t)(now_ms - arrival_ms) < step->hold_ms) return;
-
-    ++current_step_index;
-    if (current_step_index >= current_sequence->steps_count)
-    {
-        current_sequence = NULL;
-        action_state = ARM_ACTION_STATE_FINISHED;
-        return;
-    }
-    if (!ArmAction_BeginStep(now_ms))
-    {
-        current_sequence = NULL;
-        action_state = ARM_ACTION_STATE_ERROR;
-    }
 }
 
 void arm_action_cancel(void)
 {
-    current_sequence = NULL;
-    current_step_index = 0U;
-    step_move_ms = 0U;
-    target_sent = false;
-    /* 保持最近一次指令及 PWM；没有位置反馈，舵机可能仍在追赶。 */
+    current_seq = NULL;
+    step_index = -1;
+    phase_hold = false;
     action_state = ARM_ACTION_STATE_IDLE;
 }
 
 ArmActionState_t arm_action_get_state(void)
 {
     return action_state;
+}
+
+void arm_action_update(uint32_t now_ms)
+{
+    if (action_state != ARM_ACTION_STATE_RUNNING || current_seq == NULL)
+    {
+        return;
+    }
+
+    /* 停留阶段：时间到进入下一帧 */
+    if (phase_hold)
+    {
+        if ((uint32_t)(now_ms - phase_start_ms) < ARM_ACTION_HOLD_MS)
+        {
+            return;
+        }
+        ++step_index;
+        if (step_index >= (int16_t)current_seq->step_count)
+        {
+            arm_action_cancel();
+            action_state = ARM_ACTION_STATE_FINISHED;
+            return;
+        }
+        begin_keyframe(current_keyframe());
+        phase_start_ms = now_ms;
+    }
+
+    /* 逼近阶段：三关节独立步进（速度 = 点动快速档） */
+    const float dt_s = ARM_ACTION_TICK_S;
+    ArmPose_t pose;
+    if (!arm_get_pose(&pose))
+    {
+        arm_action_cancel();
+        action_state = ARM_ACTION_STATE_ERROR;
+        return;
+    }
+
+    const bool base_done    = step_joint(&pose.base_z_deg,  tgt_base,
+                                         ARM_MANUAL_BASE_MAX_DPS, dt_s);
+    const bool link1_done   = step_joint(&pose.link1_deg,   tgt_link1,
+                                         ARM_MANUAL_SHOULDER_MAX_DPS, dt_s);
+    const bool link2_done   = step_joint(&pose.link2_deg,   tgt_link2,
+                                         ARM_MANUAL_ELBOW_MAX_DPS, dt_s);
+
+    if (!arm_set_pose(&pose))
+    {
+        arm_action_cancel();
+        action_state = ARM_ACTION_STATE_ERROR;
+        return;
+    }
+
+    if (base_done && link1_done && link2_done)
+    {
+        /* 到位：按帧内状态切换夹爪，进入停留 */
+        const ArmKeyframe_t *kf = current_keyframe();
+        if (!grip_done && kf->gripper != GRIPPER_UNDEF)
+        {
+            (void)gripper_set(kf->gripper);
+            grip_done = true;
+        }
+        phase_hold = true;
+        phase_start_ms = now_ms;
+    }
 }

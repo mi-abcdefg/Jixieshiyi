@@ -44,17 +44,6 @@ bool arm_set_pose(const ArmPose_t *pose)
     return result;
 }
 
-bool arm_set_gripper(float angle_deg)
-{
-    ArmPose_t pose;
-    if (!arm_get_pose(&pose))
-    {
-        return false;
-    }
-    pose.gripper_deg = angle_deg;
-    return arm_set_pose(&pose);
-}
-
 void arm_set_torque_enabled(bool enabled)
 {
     servo_set_torque_enabled(enabled);

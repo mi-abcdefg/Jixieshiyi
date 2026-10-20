@@ -43,12 +43,6 @@ bool arm_set_pose(const ArmPose_t *pose);
 bool arm_get_pose(ArmPose_t *pose);
 
 /**
- * @brief 只设置夹爪角度，其余三个关节保持当前指令值
- * @return false 表示姿态尚未初始化或舵机设置失败
- */
-bool arm_set_gripper(float angle_deg);
-
-/**
  * @brief 机械臂整体卸力/恢复（卸力 = 四路舵机停止输出脉冲，无保持力矩）
  *
  * 卸力期间所有关节写入被拒绝；恢复后自动回到卸力前姿态。

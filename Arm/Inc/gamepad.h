@@ -28,7 +28,8 @@ typedef enum {
     GAMEPAD_SELECT   = (1U << 4),
     GAMEPAD_PAD_LEFT = (1U << 5),  // 十字键"左"（预留）
     GAMEPAD_L1       = (1U << 6),  // 左肩键1（语义在消费端：机械臂模式=点动两档调速）
-    GAMEPAD_L2       = (1U << 7)   // 左肩键2（语义在消费端：机械臂模式=卸力/恢复）
+    GAMEPAD_L2       = (1U << 7),  // 左肩键2（语义在消费端：机械臂模式=卸力/恢复）
+    GAMEPAD_PAD_UP   = (1U << 8)   // 十字键"上"（语义在消费端：机械臂模式=回收缩动作）
 } GamepadButton_t;
 
 #ifdef __cplusplus
