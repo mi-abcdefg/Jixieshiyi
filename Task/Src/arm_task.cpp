@@ -71,8 +71,8 @@ namespace {
         return inverted ? -v : v;
     }
 
-    bool beyond_deadzone(float v, float deadzone) {
-        return v > deadzone || v < -deadzone;
+    bool beyond_deadzone(float v) {
+        return v > ARM_MANUAL_DEADZONE || v < -ARM_MANUAL_DEADZONE;
     }
 }
 
@@ -131,13 +131,10 @@ void ArmTask::run() {
         /* ---------------- 仲裁：手动点动打断自动运动 ----------------
          * 与 robot_control 的"动作中不响应新动作键"互补：
          * 人手动推杆是最直接的意图表达，优先级最高——正在执行的动作
-         * （含脱离/收缩/转移）会被停下，保持在当前位置。
-         * 打断用独立的更大阈值：摇杆静置漂移不应误杀动作。 */
+         * （含脱离/收缩等）会被停下，保持在当前位置。 */
         const bool manual_input =
-            beyond_deadzone(manual_base, ARM_MANUAL_INTERRUPT_DEADZONE) ||
-            beyond_deadzone(manual_shoulder, ARM_MANUAL_INTERRUPT_DEADZONE) ||
-            beyond_deadzone(manual_elbow, ARM_MANUAL_INTERRUPT_DEADZONE) ||
-            beyond_deadzone(manual_gripper, ARM_MANUAL_INTERRUPT_DEADZONE);
+            beyond_deadzone(manual_base) || beyond_deadzone(manual_shoulder) ||
+            beyond_deadzone(manual_elbow) || beyond_deadzone(manual_gripper);
         if (manual_input &&
             arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
             arm_action_cancel();

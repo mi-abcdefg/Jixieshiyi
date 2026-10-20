@@ -199,10 +199,8 @@ void arm_action_update(uint32_t now_ms)
         ++step_index;
         if (step_index >= (int16_t)current_len)
         {
-            /* 完成后直接回 IDLE：若停在 FINISHED，实测会导致脱离完成后
-             * 首次 L2 表现异常（需要按两次才卸力）。FINISHED 枚举保留
-             * 但不再使用。 */
             arm_action_cancel();
+            action_state = ARM_ACTION_STATE_FINISHED;
             return;
         }
         begin_keyframe(arm_keyframe_get(current_path[step_index]));

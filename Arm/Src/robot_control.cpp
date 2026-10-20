@@ -36,12 +36,13 @@ void robot_control_update(uint32_t now_ms)
     }
 
     /* L2：卸力 ⇄ 恢复 + 自动脱离。
-     * 动作运行中按 L2 = 停止动作并立即卸力（一次按键完成"停 + 卸"）；
-     * 只想停下不卸力的话，轻推任一摇杆或按 SELECT 同样能停在当前位置。
-     * 恢复力矩后不原地待着，而是启动"脱离"动作远离卡住区域。 */
+     * 卸力通常发生在臂卡住时，因此恢复力矩后不原地待着，而是启动
+     * "脱离"动作（大臂小臂升到行程中点 → 底座转到行程中点），远离
+     * 卡住区域。动作运行中按 L2 = 停止并保持当前位置。 */
     if ((events & GAMEPAD_L2) != 0U) {
         if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
-            arm_action_cancel();   // 途中停止自动运动（立即生效）
+            arm_action_cancel();   // 途中停止自动运动，保持当前位置
+            return;
         }
         if (arm_get_torque_enabled()) {
             arm_set_torque_enabled(false);              // 卸力（无脉冲输出）
