@@ -13,13 +13,16 @@
 //   │ 左摇杆 上下   │ 底盘前后                │ 肘抬落                    │
 //   │ 左摇杆 左右   │ 底盘平移                │ 夹爪开合                  │
 //   └──────────────┴────────────────────────┴──────────────────────────┘
-//   动作键（△○×□ 触发预置序列、SELECT 取消）仅机械臂模式生效，
-//   SELECT 取消在两种模式下都可用（详见 robot_control）。
+//   按键（机械臂模式）：○=夹爪两档切换  L2=卸力⇄恢复（恢复后自动伸展
+//   脱离卡住区，途中 L2/推杆/SELECT 可停）  L1=点动两档调速
+//   △/□=抓取动作  ×=放置  SELECT=取消；
+//   动作键仅机械臂模式生效，SELECT 取消在两种模式下都可用。
 //
 // 数据流（每周期约 20ms）：
 //   PS2 解码结果（RemoteCommTask 每 10ms 刷新，这里只读）
-//     ├─ 按键位重排 → gamepad_update → robot_control_update（动作键，模式门控在其内部）
+//     ├─ 按键位重排 → gamepad_update → robot_control_update（按键决策，模式门控在其内部）
 //     └─ 摇杆归一化 → 按模式分流 → arm_manual_update（关节点动）
+//   arm_escape_update（卸力恢复后的自动伸展脱离）
 //   arm_action_update（自动动作状态机推进）
 
 #include "arm_task.h"
@@ -125,21 +128,27 @@ void ArmTask::run() {
         const float manual_elbow   = arm_mode ? elbow : 0.0f;
         const float manual_gripper = arm_mode ? gripper : 0.0f;
 
-        /* ---------------- 仲裁：手动点动打断自动动作 ----------------
+        /* ---------------- 仲裁：手动点动打断自动运动 ----------------
          * 与 robot_control 的"动作中不响应新动作键"互补：
-         * 人手动推杆是最直接的意图表达，优先级最高。 */
+         * 人手动推杆是最直接的意图表达，优先级最高——正在执行的
+         * 动作序列和自动伸展序列都会被停下，保持在当前位置。 */
         const bool manual_input =
             beyond_deadzone(manual_base) || beyond_deadzone(manual_shoulder) ||
             beyond_deadzone(manual_elbow) || beyond_deadzone(manual_gripper);
-        if (manual_input &&
-            arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
-            arm_action_cancel();
+        if (manual_input) {
+            if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
+                arm_action_cancel();
+            }
+            if (arm_escape_is_running()) {
+                arm_escape_stop();
+            }
         }
 
         /* ---------------- 推进机械臂各层 ---------------- */
         arm_manual_update(now_ms, manual_base, manual_shoulder,
                           manual_elbow, manual_gripper);
         robot_control_update(now_ms);   // 事件在内部每周期取走，不残留
+        arm_escape_update(now_ms);      // 卸力恢复后的自动伸展脱离
         arm_action_update(now_ms);
 
         osDelay(ARM_TASK_PERIOD_MS);

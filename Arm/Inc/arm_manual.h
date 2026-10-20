@@ -35,6 +35,16 @@
  * 角速度 × ARM_MANUAL_SLOW_DPS_SCALE）。上电默认快速。 */
 #define ARM_MANUAL_SLOW_DPS_SCALE    0.5f
 
+/* ------------------- 自动伸展脱离（卸力恢复后触发） ------------------- */
+/* 卸力通常发生在臂卡住时：恢复力矩后自动执行"逃离卡住区域"的伸展序列：
+ *   阶段 1：大臂、小臂同时往上伸展到各自行程中点；
+ *   阶段 2：底座转到行程中点。
+ * 速度与点动快速档相同（不受 L1 慢速档影响）；途中再次按 L2、推动任意
+ * 摇杆或按 SELECT，都会立即停止伸展并保持在当前位置。 */
+#define ARM_ESCAPE_SHOULDER_DEG      90.0f   // 肩行程中点（连杆竖直向上）
+#define ARM_ESCAPE_ELBOW_DEG        -30.0f   // 肘行程中点（绝对仰角 60°）
+#define ARM_ESCAPE_BASE_DEG         180.0f   // 底座行程中点（方位角朝 -X）
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,6 +58,26 @@ void arm_manual_init(void);
  * @brief 点动调速档循环切换（快 → 慢 → 快……），由决策层在 L1 边沿调用
  */
 void arm_manual_cycle_speed_level(void);
+
+/**
+ * @brief 启动自动伸展脱离序列（在 L2 恢复力矩后调用）
+ */
+void arm_escape_start(uint32_t now_ms);
+
+/**
+ * @brief 停止自动伸展，保持在当前位置
+ */
+void arm_escape_stop(void);
+
+/**
+ * @brief 是否正在执行自动伸展序列
+ */
+bool arm_escape_is_running(void);
+
+/**
+ * @brief 周期推进自动伸展序列（建议 20ms，与点动同一任务调用）
+ */
+void arm_escape_update(uint32_t now_ms);
 
 /**
  * @brief 周期调用（建议 20ms）：按各轴杆量驱动对应关节

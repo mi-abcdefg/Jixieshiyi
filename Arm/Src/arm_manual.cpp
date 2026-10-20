@@ -110,3 +110,117 @@ void arm_manual_update(uint32_t now_ms,
 
     (void)arm_set_pose(&pose);
 }
+
+/* ================== 自动伸展脱离（卸力恢复后触发） ================== */
+
+static float fabsf_local(float x)
+{
+    return x < 0.0f ? -x : x;
+}
+
+enum EscapeState : uint8_t
+{
+    ESCAPE_IDLE = 0,
+    ESCAPE_LINKS,   // 阶段 1：大臂、小臂同时升到行程中点
+    ESCAPE_BASE     // 阶段 2：底座转到行程中点
+};
+
+static EscapeState escape_state = ESCAPE_IDLE;
+static uint32_t escape_last_ms = 0U;
+
+/* 向目标角步进一步（步长封顶）；返回是否已到达 */
+static bool escape_step_toward(float *angle_deg, float target_deg, float max_step)
+{
+    const float remain = fabsf_local(target_deg - *angle_deg);
+    if (remain <= max_step)
+    {
+        *angle_deg = target_deg;
+        return true;
+    }
+    *angle_deg += (*angle_deg < target_deg) ? max_step : -max_step;
+    return false;
+}
+
+void arm_escape_start(uint32_t now_ms)
+{
+    escape_state = ESCAPE_LINKS;
+    escape_last_ms = now_ms;
+}
+
+void arm_escape_stop(void)
+{
+    /* 保持当前位置：命令角不动，只终止序列 */
+    escape_state = ESCAPE_IDLE;
+}
+
+bool arm_escape_is_running(void)
+{
+    return escape_state != ESCAPE_IDLE;
+}
+
+void arm_escape_update(uint32_t now_ms)
+{
+    if (escape_state == ESCAPE_IDLE)
+    {
+        return;
+    }
+
+    /* 卸力状态下不伸展（理论到不了这里：恢复力矩才会启动序列） */
+    if (!arm_get_torque_enabled())
+    {
+        escape_state = ESCAPE_IDLE;
+        return;
+    }
+
+    const uint32_t dt_ms = (uint32_t)(now_ms - escape_last_ms);
+    escape_last_ms = now_ms;
+    const float dt_s = (dt_ms > ARM_MANUAL_MAX_DT_MS)
+                       ? (float)ARM_MANUAL_MAX_DT_MS / 1000.0f
+                       : (float)dt_ms / 1000.0f;
+
+    ArmPose_t pose;
+    if (!arm_get_pose(&pose))
+    {
+        escape_state = ESCAPE_IDLE;
+        return;
+    }
+
+    /* 速度与点动快速档相同（不受 L1 慢速档影响）：直接用各关节最大角速度 */
+    if (escape_state == ESCAPE_LINKS)
+    {
+        /* 阶段 1：大臂、小臂同时往上伸展，两关节都到位后进入阶段 2 */
+        const bool link1_done = escape_step_toward(
+            &pose.link1_deg, ARM_ESCAPE_SHOULDER_DEG,
+            ARM_MANUAL_SHOULDER_MAX_DPS * dt_s);
+        const bool link2_done = escape_step_toward(
+            &pose.link2_deg, ARM_ESCAPE_ELBOW_DEG,
+            ARM_MANUAL_ELBOW_MAX_DPS * dt_s);
+
+        if (!arm_set_pose(&pose))
+        {
+            escape_state = ESCAPE_IDLE;
+            return;
+        }
+        if (link1_done && link2_done)
+        {
+            escape_state = ESCAPE_BASE;
+        }
+    }
+    else if (escape_state == ESCAPE_BASE)
+    {
+        /* 阶段 2：底座转到行程中点，到位即结束 */
+        const bool base_done = escape_step_toward(
+            &pose.base_z_deg, ARM_ESCAPE_BASE_DEG,
+            ARM_MANUAL_BASE_MAX_DPS * dt_s);
+
+        if (!arm_set_pose(&pose))
+        {
+            escape_state = ESCAPE_IDLE;
+            return;
+        }
+        if (base_done)
+        {
+            escape_state = ESCAPE_IDLE;
+        }
+    }
+}

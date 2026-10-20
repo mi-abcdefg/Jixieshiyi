@@ -25,39 +25,43 @@ void robot_control_update(uint32_t now_ms)
         return;
     }
 
-    /* 取消键优先于同一批次的其他按键，且不受模式限制（停止语义） */
+    /* SELECT：取消一切自动运动（动作序列 + 自动伸展），两种模式均生效 */
     if ((events & GAMEPAD_SELECT) != 0U) {
         arm_action_cancel();
+        arm_escape_stop();
         return;
     }
 
-    /* 抓取/放置动作键只在机械臂模式生效。
+    /* 抓取/放置等按键只在机械臂模式生效。
      * 事件已取出并丢弃，不会残留到切回机械臂模式之后。 */
     if (control_mode_get() != CONTROL_MODE_ARM) {
         return;
     }
 
-    /* 十字键"左"：夹爪在张开/闭合两档间快速切换。
-     * 若动作正在执行先取消——动作每拍整姿下发，会把这里的夹爪指令覆盖掉；
-     * 取消与手动推杆打断是同一优先级策略。 */
-    if ((events & GAMEPAD_PAD_LEFT) != 0U) {
-        if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
-            arm_action_cancel();
+    /* L2：卸力 ⇄ 恢复 + 自动伸展脱离。
+     * 卸力通常发生在臂卡住时，因此恢复力矩后不原地待着，而是自动
+     * 伸展脱离卡住区域：大臂小臂升到行程中点 → 底座转到行程中点。
+     * 途中再按 L2 立即停在当前位置。 */
+    if ((events & GAMEPAD_L2) != 0U) {
+        if (arm_escape_is_running()) {
+            arm_escape_stop();   // 伸展途中：停止自动伸展，保持当前位置
+            return;
         }
-        gripper_at_close = !gripper_at_close;
-        (void)arm_set_gripper(gripper_at_close ? ARM_GRIPPER_CLOSE_DEG
-                                               : ARM_GRIPPER_OPEN_DEG);
+        if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
+            arm_action_cancel();   // 卸力前先取消动作，避免状态机误入 ERROR
+        }
+        if (arm_get_torque_enabled()) {
+            arm_set_torque_enabled(false);              // 卸力（无脉冲输出）
+        } else {
+            arm_set_torque_enabled(true);               // 恢复到卸力前姿态
+            arm_escape_start(now_ms);                   // 自动伸展脱离
+        }
         return;
     }
 
-    /* L2：机械臂卸力 ⇄ 恢复。
-     * 卸力时若动作正在执行先取消（动作每拍写舵机会被卸力保护拒绝，
-     * 会让状态机误入 ERROR）；恢复后臂自动回到卸力前姿态。 */
-    if ((events & GAMEPAD_L2) != 0U) {
-        if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
-            arm_action_cancel();
-        }
-        arm_set_torque_enabled(!arm_get_torque_enabled());
+    /* 自动伸展期间忽略其余按键：动作/夹爪/调速都会与伸展运动打架。
+     * 手动推杆不受此限制（点动在编排层会先停止伸展再接管）。 */
+    if (arm_escape_is_running()) {
         return;
     }
 
@@ -70,6 +74,18 @@ void robot_control_update(uint32_t now_ms)
     /* L1：点动调速两档循环（快 ⇄ 慢），仅作用于手动点动，不影响动作序列 */
     if ((events & GAMEPAD_L1) != 0U) {
         arm_manual_cycle_speed_level();
+        return;
+    }
+
+    /* 圆圈键：夹爪在张开/闭合两档间快速切换。
+     * 若动作正在执行先取消——动作每拍整姿下发，会把这里的夹爪指令覆盖掉。 */
+    if ((events & GAMEPAD_CIRCLE) != 0U) {
+        if (arm_action_get_state() == ARM_ACTION_STATE_RUNNING) {
+            arm_action_cancel();
+        }
+        gripper_at_close = !gripper_at_close;
+        (void)arm_set_gripper(gripper_at_close ? ARM_GRIPPER_CLOSE_DEG
+                                               : ARM_GRIPPER_OPEN_DEG);
         return;
     }
 
@@ -88,13 +104,12 @@ void robot_control_update(uint32_t now_ms)
 
     ArmActionId_t action_id;
 
-    /* 按判断顺序决定同时按键时的优先级 */
+    /* 按判断顺序决定同时按键时的优先级。
+     * 注意：圆圈键已改配夹爪两档切换，抓取模式 2 的动作表保留但暂无按键。 */
     if ((events & GAMEPAD_CROSS) != 0U) {
         action_id = ARM_ACTION_PLACE;
     } else if ((events & GAMEPAD_TRIANGLE) != 0U) {
         action_id = ARM_ACTION_GRAB_MODE_1;
-    } else if ((events & GAMEPAD_CIRCLE) != 0U) {
-        action_id = ARM_ACTION_GRAB_MODE_2;
     } else if ((events & GAMEPAD_SQUARE) != 0U) {
         action_id = ARM_ACTION_GRAB_MODE_3;
     } else {
