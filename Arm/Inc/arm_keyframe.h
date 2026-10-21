@@ -53,9 +53,9 @@ constexpr float base_user_to_cmd(float user_deg)
  *   user 90  → cmd  90            → 竖直附近
  *   user 180 → cmd 180（限幅 165）→ 上推极限（竖直）
  * 以后再遇到镜像，同样只翻这两行（`link1_user_to_cmd / link1_cmd_to_user`），
- * 不要改关键帧数值。注意：篮内判定里的肩阈值以用户角表达，本次已把
- * "≤ kInBasketShoulderUserMax" 同步镜像为 "≥ kInBasketShoulderUserMin"
- * （见 arm_action.cpp），保持判定的**物理**含义不变。 */
+ * 不要改关键帧数值。注意：篮内判定里的肩阈值以用户角表达——本次镜像后
+ * 实测判定方向反了，已取关于 90° 对称的另一半区（肩 ≤ 100 = 压低半区，
+ * 见 arm_action.cpp）。 */
 constexpr float link1_user_to_cmd(float user_deg)
 {
     return user_deg;

@@ -27,6 +27,11 @@ bool s_sticks_valid = false;
 bool s_menu = false;                 // true = 动作选择菜单
 bool s_endpoint_active = false;      // 本周期十字键正在做末端点动
 
+/* 菜单退出时正按着的槽位键：在松开前不许再当"末端点动"输入——否则用槽位键
+ * 退出菜单的那一刻，同一个键还在手里，会被当成十字键点动，把刚启动的动作
+ * 立刻打断（实测表现为"菜单里的键仍然在动机械臂"）。所有十字键松开即解除。 */
+bool s_pad_suppress = false;
+
 /* --------------------------- 动作选择菜单的槽位 ---------------------------
  * 机械臂模式下按 R1 进入菜单，此时 8 个键（左十字键 4 个 + 右面键 4 个）各触发
  * 一个动作；无论按的是槽位键还是 R1，都退出菜单回到正常态（一次性菜单）。
@@ -93,6 +98,14 @@ float pad_axis_dr(void)
     return dr;
 }
 
+/** 四个十字键中是否有任何一个按着 */
+bool any_pad_held(void)
+{
+    constexpr uint16_t kPadAny = kArmBtnPadUp | kArmBtnPadDown |
+                                 kArmBtnPadLeft | kArmBtnPadRight;
+    return (s_previous_buttons & kPadAny) != 0U;
+}
+
 /** 菜单态的 8 个槽位分派（一次性菜单：按任意槽位键都退出菜单） */
 void dispatch_menu(uint16_t events, uint32_t now_ms)
 {
@@ -102,8 +115,11 @@ void dispatch_menu(uint16_t events, uint32_t now_ms)
             continue;
         }
 
-        /* 按了任意槽位键：先退出菜单，回到正常态（2026/10/21 需求） */
+        /* 按了任意槽位键：退出菜单回正常态（2026/10/21 需求）。
+         * 若这是十字键（左侧槽位），屏蔽到松开——按住不放不能立刻变成
+         * 末端点动，否则刚启动的动作会被同一根手指打断。 */
         s_menu = false;
+        s_pad_suppress = true;
 
         if (slot.action == ActionId::kCount) {
             return;       // 占位槽位：只退出菜单，不触发动作
@@ -239,6 +255,7 @@ void arm_button_init(void)
     s_sticks_valid = false;
     s_menu = false;
     s_endpoint_active = false;
+    s_pad_suppress = false;
     for (uint32_t i = 0; i < 4U; i++) {
         s_stick[i] = 0.0f;
     }
@@ -315,8 +332,13 @@ void arm_button_apply(uint32_t now_ms)
 
     /* ------------------- 十字键长按：末端柱坐标点动 -------------------
      * 仅"机械臂模式 + 正常 UI 模式 + 未卸力"时响应；菜单态下十字键是动作槽位。
-     * 与"再次动作键"一样属于手动接管：按下去若正在跑动作/抖动，先停掉。 */
-    const bool jog_enabled = arm_mode && !s_menu && !arm_is_relaxed();
+     * 与"再次动作键"一样属于手动接管：按下去若正在跑动作/抖动，先停掉。
+     * 菜单退出时按住的键先屏蔽到松开（见 s_pad_suppress 注释）。 */
+    if (s_pad_suppress && !any_pad_held()) {
+        s_pad_suppress = false;
+    }
+    const bool jog_enabled = arm_mode && !s_menu && !arm_is_relaxed() &&
+                             !s_pad_suppress;
     const float dz = jog_enabled ? pad_axis_dz() : 0.0f;
     const float dr = jog_enabled ? pad_axis_dr() : 0.0f;
 

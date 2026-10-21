@@ -36,12 +36,7 @@
 #define MOTOR_DRV_ENABLE_LEVEL    GPIO_PIN_SET
 #define MOTOR_DRV_DISABLE_LEVEL   GPIO_PIN_RESET
 
-/* ---------------------- 电机接线方向修正 ----------------------
- * 如果某个轮子的电机正负极接反（转向和预期相反），不用去改线，
- * 把对应的一项从 0 改成 1 即可，软件会把该轮的速度指令取反。
- * 顺序与 motor_set_wheel_speed() 的参数一致：FL(前左), FR(前右), BL(后左), BR(后右)
- */
-
+//电机接线方向修正
 //A车后右轮子需翻转
 #define MOTOR_INVERT_FL           0
 #define MOTOR_INVERT_FR           0
