@@ -35,6 +35,13 @@ enum class ActionId : uint8_t {
     kRetract = 0,   // 回收缩（△）：经篮上/外侧高点 → 收缩位，夹爪闭合
     kTransit,       // 篮内外转移（×）：篮外→篮内，或篮内→篮外（出篮终点夹爪闭合）
     kEscape,        // 脱离（L2 恢复后自动）：先只给大臂（肩）通电撑直，再大臂保持＋底座回中
+    /* —— R1 动作菜单的取放动作（先按篮内/篮外判定经过渡高点，再到终点）—— */
+    kEnergyCoreShelf,     // 能量核心_物资架（菜单·左上）
+    kEnergyUnitShelfLeft, // 能量单元_物资架下左（菜单·左左）
+    kEnergyCorePlatform,  // 能量核心_高台（菜单·△）
+    kEnergyUnitPlatLeft,  // 能量单元_高台左（菜单·□）
+    kEnergyUnitPlatRight, // 能量单元_高台右（菜单·○）
+    kFrontLow,            // 前方低点（菜单·左下）
     kCount
 };
 

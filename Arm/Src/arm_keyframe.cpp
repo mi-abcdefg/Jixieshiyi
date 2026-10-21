@@ -50,6 +50,20 @@ static const ArmKeyframe kKeyframes[] = {
     /* kEscapeYaw   脱离2：大臂保持 90，底座回中位（肘/夹爪仍卸力） */
     { 90.0f,         kKeep,          kKeep,          GRIPPER_UNDEF,
       ARM_JOINT_SHOULDER | ARM_JOINT_BASE_Z },
+    /* —— 动作菜单的取放点（R1 菜单，2026/10/21 增；角度为操作手给的占位值，
+     *    实车微调只改这里的数字）—— */
+    /* kEnergyCoreShelf      能量核心_物资架 */
+    { 60.0f,         70.0f,          160.0f,         GRIPPER_OPEN  },
+    /* kEnergyUnitShelfLeft  能量单元_物资架下左 */
+    { 60.0f,         60.0f,          45.0f,          GRIPPER_OPEN  },
+    /* kEnergyCorePlatform   能量核心_高台 */
+    { 30.0f,         75.0f,          30.0f,          GRIPPER_OPEN  },
+    /* kEnergyUnitPlatLeft   能量单元_高台左 */
+    { 30.0f,         75.0f,          20.0f,          GRIPPER_OPEN  },
+    /* kEnergyUnitPlatRight  能量单元_高台右 */
+    { 90.0f,         75.0f,          20.0f,          GRIPPER_OPEN  },
+    /* kFrontLow             前方低点（夹爪保持当前开合不动） */
+    { 0.0f,          45.0f,          60.0f,          GRIPPER_UNDEF },
 };
 
 static_assert(sizeof(kKeyframes) / sizeof(kKeyframes[0]) ==

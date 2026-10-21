@@ -110,6 +110,13 @@ enum class KeyframeId : uint8_t {
     kPickupLow,        // 拾取低点：转移动作的外侧端点（出篮终点，夹爪闭合）
     kEscapeShoulder,   // 脱离1：只撑直大臂（肩），底座/肘/夹爪仍卸力
     kEscapeYaw,        // 脱离2：大臂保持，底座回中位
+    /* —— 动作菜单的取放点（R1 菜单，2026/10/21 增）—— */
+    kEnergyCoreShelf,     // 能量核心_物资架 (60,70,160,开)
+    kEnergyUnitShelfLeft, // 能量单元_物资架下左 (60,60,45,开)
+    kEnergyCorePlatform,  // 能量核心_高台 (30,75,30,开)
+    kEnergyUnitPlatLeft,  // 能量单元_高台左 (30,75,20,开)
+    kEnergyUnitPlatRight, // 能量单元_高台右 (90,75,20,开)
+    kFrontLow,            // 前方低点 (0,45,60,夹爪不变)
     kCount
 };
 

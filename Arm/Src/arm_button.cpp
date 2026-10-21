@@ -29,26 +29,25 @@ bool s_endpoint_active = false;      // 本周期十字键正在做末端点动
 
 /* --------------------------- 动作选择菜单的槽位 ---------------------------
  * 机械臂模式下按 R1 进入菜单，此时 8 个键（左十字键 4 个 + 右面键 4 个）各触发
- * 一个动作。**当前全部为占位**（2026/10/21：用户要求"先占位，这几个都是新
- * 动作，后续加"），所以现在按任何菜单键都没有动作。
+ * 一个动作；无论按的是槽位键还是 R1，都退出菜单回到正常态（一次性菜单）。
+ * 占位槽位（ActionId::kCount）按下也会退出菜单，只是不触发动作。
  *
  * 新增动作时改三处：① arm_action.h 加 ActionId；② arm_action.cpp 的
- * kSequences[] 登记路径；③ 把下面某行的 ActionId::kCount 换成新动作。
- * 占位槽位（kCount）按下去不会有任何反应，也不会打断正在执行的动作。 */
+ * kSequences[] 登记路径（取放点关键帧加在 arm_keyframe）；③ 下面对一行。 */
 struct MenuSlot {
     uint16_t button;     // 触发它的键
     ActionId action;     // 绑定的动作（ActionId::kCount = 占位）
 };
 
 const MenuSlot kMenuSlots[] = {
-    { kArmBtnTriangle, ActionId::kCount },   // 右·上 △
-    { kArmBtnCircle,   ActionId::kCount },   // 右·右 ○
-    { kArmBtnCross,    ActionId::kCount },   // 右·下 ×
-    { kArmBtnSquare,   ActionId::kCount },   // 右·左 □
-    { kArmBtnPadUp,    ActionId::kCount },   // 左·上 ↑
-    { kArmBtnPadRight, ActionId::kCount },   // 左·右 →
-    { kArmBtnPadDown,  ActionId::kCount },   // 左·下 ↓
-    { kArmBtnPadLeft,  ActionId::kCount },   // 左·左 ←
+    { kArmBtnTriangle, ActionId::kEnergyCorePlatform },   // 右·上 △ 能量核心_高台
+    { kArmBtnCircle,   ActionId::kEnergyUnitPlatRight },  // 右·右 ○ 能量单元_高台右
+    { kArmBtnCross,    ActionId::kCount },                // 右·下 × 占位
+    { kArmBtnSquare,   ActionId::kEnergyUnitPlatLeft },   // 右·左 □ 能量单元_高台左
+    { kArmBtnPadUp,    ActionId::kEnergyCoreShelf },      // 左·上 能量核心_物资架
+    { kArmBtnPadRight, ActionId::kCount },                // 左·右 占位
+    { kArmBtnPadDown,  ActionId::kFrontLow },             // 左·下 前方低点
+    { kArmBtnPadLeft,  ActionId::kEnergyUnitShelfLeft },  // 左·左 能量单元_物资架下左
 };
 
 /** 任一摇杆轴越过打断阈值 = 操作员想手动接管 */
@@ -94,7 +93,7 @@ float pad_axis_dr(void)
     return dr;
 }
 
-/** 菜单态的 8 个槽位分派 */
+/** 菜单态的 8 个槽位分派（一次性菜单：按任意槽位键都退出菜单） */
 void dispatch_menu(uint16_t events, uint32_t now_ms)
 {
     for (uint32_t i = 0; i < (uint32_t)(sizeof(kMenuSlots) / sizeof(kMenuSlots[0])); i++) {
@@ -102,12 +101,20 @@ void dispatch_menu(uint16_t events, uint32_t now_ms)
         if ((events & slot.button) == 0U) {
             continue;
         }
+
+        /* 按了任意槽位键：先退出菜单，回到正常态（2026/10/21 需求） */
+        s_menu = false;
+
         if (slot.action == ActionId::kCount) {
-            continue;       // 占位槽位：无动作
+            return;       // 占位槽位：只退出菜单，不触发动作
         }
         /* 与正常模式的动作键同规矩（E5）：运行中再按 = 打断并停在当前位置 */
         if (arm_action_get_state() == ActionState::kRunning) {
             arm_action_cancel();
+            return;
+        }
+        if (arm_shake_is_running()) {
+            arm_shake_cancel();   // 抖动中选动作 = 先停抖动（肘交给动作）
             return;
         }
         (void)arm_action_start(slot.action, now_ms);

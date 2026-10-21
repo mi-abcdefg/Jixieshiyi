@@ -65,6 +65,39 @@ constexpr KeyframeId kEscapePath[] = {
     KeyframeId::kEscapeShoulder, KeyframeId::kEscapeYaw
 };
 
+/* ------- R1 动作菜单的取放动作（2026/10/21 增） -------
+ * 六个动作同构：先按篮内/篮外判定经过渡高点（篮内→篮上高点，篮外→外侧
+ * 高点），再到各自的取放点。终点角度全在 arm_keyframe.cpp 的表里。 */
+constexpr KeyframeId kCoreShelfIn[] = {
+    KeyframeId::kBasketHigh, KeyframeId::kEnergyCoreShelf };
+constexpr KeyframeId kCoreShelfOut[] = {
+    KeyframeId::kOuterHigh, KeyframeId::kEnergyCoreShelf };
+
+constexpr KeyframeId kUnitShelfLeftIn[] = {
+    KeyframeId::kBasketHigh, KeyframeId::kEnergyUnitShelfLeft };
+constexpr KeyframeId kUnitShelfLeftOut[] = {
+    KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitShelfLeft };
+
+constexpr KeyframeId kCorePlatformIn[] = {
+    KeyframeId::kBasketHigh, KeyframeId::kEnergyCorePlatform };
+constexpr KeyframeId kCorePlatformOut[] = {
+    KeyframeId::kOuterHigh, KeyframeId::kEnergyCorePlatform };
+
+constexpr KeyframeId kUnitPlatLeftIn[] = {
+    KeyframeId::kBasketHigh, KeyframeId::kEnergyUnitPlatLeft };
+constexpr KeyframeId kUnitPlatLeftOut[] = {
+    KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatLeft };
+
+constexpr KeyframeId kUnitPlatRightIn[] = {
+    KeyframeId::kBasketHigh, KeyframeId::kEnergyUnitPlatRight };
+constexpr KeyframeId kUnitPlatRightOut[] = {
+    KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatRight };
+
+constexpr KeyframeId kFrontLowIn[] = {
+    KeyframeId::kBasketHigh, KeyframeId::kFrontLow };
+constexpr KeyframeId kFrontLowOut[] = {
+    KeyframeId::kOuterHigh, KeyframeId::kFrontLow };
+
 /** 一条路径 */
 struct Path {
     const KeyframeId *frames;
@@ -102,6 +135,31 @@ const ActionSeq kSequences[] = {
       make_path(kTransitFromOutside) },
     /* kEscape  脱离 */
     { make_path(kEscapePath), kNoPath, kNoPath },
+    /* —— R1 动作菜单的取放动作（先经过渡高点，再到取放点）—— */
+    /* kEnergyCoreShelf 能量核心_物资架 */
+    { kNoPath,
+      make_path(kCoreShelfIn),
+      make_path(kCoreShelfOut) },
+    /* kEnergyUnitShelfLeft 能量单元_物资架下左 */
+    { kNoPath,
+      make_path(kUnitShelfLeftIn),
+      make_path(kUnitShelfLeftOut) },
+    /* kEnergyCorePlatform 能量核心_高台 */
+    { kNoPath,
+      make_path(kCorePlatformIn),
+      make_path(kCorePlatformOut) },
+    /* kEnergyUnitPlatLeft 能量单元_高台左 */
+    { kNoPath,
+      make_path(kUnitPlatLeftIn),
+      make_path(kUnitPlatLeftOut) },
+    /* kEnergyUnitPlatRight 能量单元_高台右 */
+    { kNoPath,
+      make_path(kUnitPlatRightIn),
+      make_path(kUnitPlatRightOut) },
+    /* kFrontLow 前方低点 */
+    { kNoPath,
+      make_path(kFrontLowIn),
+      make_path(kFrontLowOut) },
 };
 
 static_assert(sizeof(kSequences) / sizeof(kSequences[0]) ==
