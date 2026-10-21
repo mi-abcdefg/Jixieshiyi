@@ -6,7 +6,7 @@
 //
 // 用户角约定（0~180，与舵机安装方向解耦）：
 //   底座 base      user 0 = 工作侧端（cmd 270）  user 180 = 篮子侧端（cmd 90）
-//   肩   shoulder  user 0 = 上推极限           user 180 = 下推极限（收拢）
+//   肩   shoulder  user 0 = 下推极限（收拢）     user 180 = 上推极限（竖直）
 //   肘   elbow     user 0 = 下推极限（cmd −120）user 180 = 上推极限（cmd +60）
 //   爪   gripper   不用角度，以"开/合/不变"参与关键帧（见 gripper.h）
 //
@@ -46,9 +46,19 @@ constexpr float base_user_to_cmd(float user_deg)
     return 270.0f - user_deg;
 }
 
+/* 肩方向标定（2026/10/21 实车复核后**已镜像一次**）：原式 cmd = 180 − user
+ * 使用户角上下颠倒（动作按"肩抬起"给的用户角实际落到收拢端）。翻转为
+ * cmd = user，映射关系为
+ *   user 0   → cmd   0（限幅 15） → 下推极限（收拢）
+ *   user 90  → cmd  90            → 竖直附近
+ *   user 180 → cmd 180（限幅 165）→ 上推极限（竖直）
+ * 以后再遇到镜像，同样只翻这两行（`link1_user_to_cmd / link1_cmd_to_user`），
+ * 不要改关键帧数值。注意：篮内判定里的肩阈值以用户角表达，本次已把
+ * "≤ kInBasketShoulderUserMax" 同步镜像为 "≥ kInBasketShoulderUserMin"
+ * （见 arm_action.cpp），保持判定的**物理**含义不变。 */
 constexpr float link1_user_to_cmd(float user_deg)
 {
-    return 180.0f - user_deg;
+    return user_deg;
 }
 
 constexpr float link2_user_to_cmd(float user_deg)
@@ -66,7 +76,7 @@ constexpr float base_cmd_to_user(float cmd_deg)
 
 constexpr float link1_cmd_to_user(float cmd_deg)
 {
-    return 180.0f - cmd_deg;
+    return cmd_deg;
 }
 
 constexpr float link2_cmd_to_user(float cmd_deg)

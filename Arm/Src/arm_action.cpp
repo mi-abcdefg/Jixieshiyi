@@ -29,11 +29,13 @@ constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角
 
 /* ---------------------- 篮内区判定（暂定值，待实车复核） ----------------------
  * 机械臂装于车身右侧、需能转往背后篮子方向：
- *   底座用户角 ≥ 160° 且 肩用户角 ≤ 100°  →  判为"篮内"；
+ *   底座用户角 ≥ 160° 且 肩用户角 ≥ 80°  →  判为"篮内"；
  *   其余位形统称篮外。
- * 阈值以**用户角**表达（篮子侧 = 用户角大的一端），底座换算若再镜像也不影响这里。 */
+ * 阈值以**用户角**表达（篮子侧 = 底座用户角大的一端）。肩阈值原为
+ * "≤ 100"（旧约定 user 0 = 上推），2026/10/21 肩换算镜像（user 0 = 下推）
+ * 时按物理含义同步镜像为 "≥ 80"（user 大 = 抬起），判定结果不变。 */
 constexpr float kInBasketBaseUserMin = 160.0f;
-constexpr float kInBasketShoulderUserMax = 100.0f;
+constexpr float kInBasketShoulderUserMin = 80.0f;
 
 /* ------------------- 动作路径（关键帧编号的序列） ------------------- */
 
@@ -156,7 +158,7 @@ bool in_basket_zone(void)
     const float base_user = base_cmd_to_user(pose.base_z_deg);
     const float shoulder_user = link1_cmd_to_user(pose.link1_deg);
     return (base_user >= kInBasketBaseUserMin) &&
-           (shoulder_user <= kInBasketShoulderUserMax);
+           (shoulder_user >= kInBasketShoulderUserMin);
 }
 
 /* 让舵机的给力状态与目标掩码一致（只动需要变的那几路，幂等） */
