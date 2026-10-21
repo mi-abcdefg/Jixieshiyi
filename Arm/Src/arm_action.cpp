@@ -40,6 +40,12 @@ constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角
 constexpr float kInBasketBaseUserMin = 160.0f;
 constexpr float kInBasketShoulderUserMax = 100.0f;
 
+/* "不走回头路"的大臂位置门槛（肩换算镜像后命令角 = 用户角，两者同值）：
+ * 起步时大臂低于此角（接近收拢）→ 不做回头路优化，老老实实按路径先
+ * 经过过渡高点——低位起步若省掉抬升折返，大臂会贴着低矮障碍直插终点
+ * （2026/10/21 实测）。 */
+constexpr float kNoBacktrackShoulderMinDeg = 45.0f;
+
 /* ------------------- 动作路径（关键帧编号的序列） ------------------- */
 
 /* 回收缩：篮内经篮上高点、篮外经外侧高点，都收到同一个收缩位 */
@@ -326,6 +332,12 @@ void plan_no_backtrack(void)
 
     ArmPose_t cur;
     if (!arm_get_pose(&cur)) {
+        return;
+    }
+
+    /* 大臂低于门槛（接近收拢）时不启用本优化：必须按完整路径先走到
+     * 过渡高点，见 kNoBacktrackShoulderMinDeg 注释 */
+    if (cur.link1_deg < kNoBacktrackShoulderMinDeg) {
         return;
     }
 

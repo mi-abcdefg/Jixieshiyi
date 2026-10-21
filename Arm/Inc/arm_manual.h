@@ -39,7 +39,7 @@
 /* 两档循环：0 = 快速（上表速度），1 = 慢速（各关节角速度 × 比例）。
  * 上电默认快速。切档入口是 L1 边沿，绑定在 arm_button（机械臂模式）。
  * 注意：动作引擎的速度**不受**本档影响，恒用快速档数值。 */
-#define ARM_MANUAL_SLOW_DPS_SCALE    0.5f
+#define ARM_MANUAL_SLOW_DPS_SCALE    0.35f  // 2026/10/21 实测调小（原 0.5）：慢速档灵敏度再低一点
 
 #ifdef __cplusplus
 extern "C" {

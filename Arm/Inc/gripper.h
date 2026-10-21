@@ -23,9 +23,10 @@
 
 /* ------------------------- 夹爪参数（占位待标定） ------------------------- */
 #define GRIPPER_OPEN_DEG    60.0f    // 张开档命令角
-#define GRIPPER_CLOSE_DEG   120.0f   // 闭合档命令角
-#define GRIPPER_SHAKE_CLOSE_DEG 108.0f  // 抖动闭合档：比闭合档留一点缝（夹而不死），
-                                        // 数值上比闭合档更靠张开方向，占位待标定
+#define GRIPPER_CLOSE_DEG   90.0f    // 闭合档命令角（2026/10/21 实测后从 120
+                                     // 调小 30°：原闭合过紧）
+#define GRIPPER_SHAKE_CLOSE_DEG 108.0f  // 抖动闭合档：比闭合档留一点缝（不完全闭）；
+                                        // 随闭合档调整后已接近全开侧，待一并标定
 #define GRIPPER_MAX_DPS     60.0f    // 点动角速度 [°/s]（满杆）
 
 #ifdef __cplusplus
