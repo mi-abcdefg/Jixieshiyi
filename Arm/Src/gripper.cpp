@@ -52,6 +52,32 @@ bool gripper_toggle(void)
     return gripper_set(target);
 }
 
+bool gripper_set_angle(float cmd_deg)
+{
+    float min_deg = 0.0f;
+    float max_deg = 0.0f;
+    if (!servo_get_angle_range(SERVO_GRIPPER, &min_deg, &max_deg))
+    {
+        return false;
+    }
+
+    if (cmd_deg < min_deg)
+    {
+        cmd_deg = min_deg;
+    }
+    else if (cmd_deg > max_deg)
+    {
+        cmd_deg = max_deg;
+    }
+
+    if (!servo_set_angle(SERVO_GRIPPER, cmd_deg))
+    {
+        return false;
+    }
+    gripper_state = GRIPPER_UNDEF;   // 离开命名档位，状态不再可描述
+    return true;
+}
+
 GripperState_t gripper_get_state(void)
 {
     return gripper_state;

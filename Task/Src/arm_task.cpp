@@ -14,9 +14,9 @@
 //   │ 左摇杆 左右   │ 底盘平移                │ 夹爪开合（点动）           │
 //   └──────────────┴────────────────────────┴──────────────────────────┘
 // 按键语义（E1~E5 的绑定全在 arm_button，本文件只做 PS2 → 抽象位图的映射）：
-//   ○ 夹爪两档切换 / △ 回收缩 / × 篮内外转移 / L2 卸力⇄恢复（逐路给力）/
-//   L1 点动两档调速 / SELECT 取消动作（两种模式都可用）
-//   十字键↑ 在机械臂模式下不绑定（留给底盘模式的定距平移）。
+//   ○ 夹爪两档切换 / △ 回收缩 / × 篮内外转移 / □ 末端抖动 /
+//   L2 卸力⇄恢复（逐路给力）/ L1 点动两档调速 / SELECT 取消（两种模式都可用）
+//   十字键↑↓←→ 末端柱坐标点动（长按）。
 //
 // 数据流（每周期 20ms）：
 //   PS2 解码结果（RemoteCommTask 每 10ms 刷新，这里只读）
@@ -37,6 +37,7 @@
 #include "arm_button.h"
 #include "arm_endpoint.h"
 #include "arm_manual.h"
+#include "arm_shake.h"
 #include "gripper.h"
 #include "servo_driver.h"
 
@@ -96,6 +97,7 @@ void ArmTask::run() {
     arm_endpoint_init();
     arm_action_init();
     arm_button_init();
+    arm_shake_init();
 
     while (1) {
         const uint32_t now_ms = osKernelSysTick();
@@ -147,14 +149,16 @@ void ArmTask::run() {
 
         /* ---------------- 推进机械臂点动 ----------------
          * 三关节同一周期只能有一个主人，否则两次写入谁赢取决于调用顺序、
-         * 关节会抖。以下三种情况摇杆点动让位（喂全 0，本模块只刷新时间戳）：
+         * 关节会抖。以下四种情况摇杆点动让位（喂全 0，本模块只刷新时间戳）：
          *   - 动作运行中：动作独占；
+         *   - 末端抖动运行中：抖动独占肘与夹爪；
          *   - 十字键末端点动激活：末端点动独占；
          *   - 动作选择菜单里：菜单态下"原本的平移/夹爪"按设计暂不响应。 */
         const bool action_running =
             (arm_action_get_state() == ActionState::kRunning);
         const bool manual_off =
-            action_running || arm_button_is_endpoint_jog_active() ||
+            action_running || arm_shake_is_running() ||
+            arm_button_is_endpoint_jog_active() ||
             arm_button_in_menu();
 
         arm_manual_update(now_ms,
@@ -165,6 +169,9 @@ void ArmTask::run() {
 
         /* ---------------- 推进动作引擎（关键帧序列） ---------------- */
         arm_action_update(now_ms);
+
+        /* ---------------- 推进末端抖动（时间驱动振荡） ---------------- */
+        arm_shake_update(now_ms);
 
         osDelay(ARM_TASK_PERIOD_MS);
     }

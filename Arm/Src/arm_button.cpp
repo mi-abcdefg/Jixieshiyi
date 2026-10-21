@@ -8,6 +8,7 @@
 #include "arm_control.h"
 #include "arm_endpoint.h"
 #include "arm_manual.h"     // ARM_MANUAL_INTERRUPT_DEADZONE（打断阈值）
+#include "arm_shake.h"
 #include "control_mode.h"
 #include "gripper.h"
 
@@ -144,6 +145,7 @@ void handle_relax_toggle(uint32_t now_ms)
         if (arm_action_get_state() == ActionState::kRunning) {
             arm_action_cancel();
         }
+        arm_shake_cancel();   // 卸力也停掉末端抖动（恢复夹爪的写入被拒绝，无害）
     }
 }
 
@@ -164,13 +166,33 @@ void handle_normal_mode(uint16_t events, uint32_t now_ms)
     }
 
     /* ---------------- ○：夹爪两档切换（E1） ----------------
-     * 动作运行中先取消动作（动作关键帧会覆盖夹爪指令），臂停在当前位置。
-     * 两档切换在任意位置都成立，所以这里不判断当前是否在档位上。 */
+     * 动作/抖动运行中先取消（否则关键帧与抖动会覆盖夹爪指令），
+     * 臂停在当前位置。两档切换在任意位置都成立，所以这里不判断
+     * 当前是否在档位上。 */
     if ((events & kArmBtnCircle) != 0U) {
         if (arm_action_get_state() == ActionState::kRunning) {
             arm_action_cancel();
         }
+        if (arm_shake_is_running()) {
+            arm_shake_cancel();
+        }
         (void)gripper_toggle();
+        return;
+    }
+
+    /* ---------------- □：末端抖动（夹爪快速开合 + 小臂小幅摆动） ----------------
+     * 只在正常模式绑定（菜单态下 □ 是动作槽位）。打断规矩与动作键相同：
+     * 抖动中再按 = 停；动作运行中按 = 先停动作。 */
+    if ((events & kArmBtnSquare) != 0U) {
+        if (arm_shake_is_running()) {
+            arm_shake_cancel();
+            return;
+        }
+        if (arm_action_get_state() == ActionState::kRunning) {
+            arm_action_cancel();
+            return;
+        }
+        (void)arm_shake_start(now_ms);
         return;
     }
 
@@ -182,7 +204,13 @@ void handle_normal_mode(uint16_t events, uint32_t now_ms)
     } else if ((events & kArmBtnCross) != 0U) {
         action_id = ActionId::kTransit;
     } else {
-        return;     // 其余按键（□ 在正常模式未绑定动作）本次不绑定动作
+        return;     // 其余按键本次不绑定动作
+    }
+
+    /* 抖动中按动作键 = 先停抖动（肘由动作接管），下次再按才启动动作 */
+    if (arm_shake_is_running()) {
+        arm_shake_cancel();
+        return;
     }
 
     /* E5：动作运行中再按动作键 = 打断，臂停在当前位置（不重开新动作） */
@@ -268,16 +296,19 @@ void arm_button_apply(uint32_t now_ms)
         s_menu = false;
     }
 
-    /* ------------------- E5：摇杆打断自动动作 -------------------
+    /* ------------------- E5：摇杆打断自动运动 -------------------
      * 人手动推杆是最直接的意图表达，优先级最高：正在执行的动作
-     * （含脱离/收缩/转移）立即停在当前位置。两种 UI 模式下都生效。 */
+     * （含脱离/收缩/转移）与末端抖动立即停在当前位置。两种 UI 模式下都生效。 */
     if (arm_action_get_state() == ActionState::kRunning && sticks_beyond_interrupt()) {
         arm_action_cancel();
+    }
+    if (arm_shake_is_running() && sticks_beyond_interrupt()) {
+        arm_shake_cancel();
     }
 
     /* ------------------- 十字键长按：末端柱坐标点动 -------------------
      * 仅"机械臂模式 + 正常 UI 模式 + 未卸力"时响应；菜单态下十字键是动作槽位。
-     * 与"再次动作键"一样属于手动接管：按下去若正在跑动作，先把它停掉。 */
+     * 与"再次动作键"一样属于手动接管：按下去若正在跑动作/抖动，先停掉。 */
     const bool jog_enabled = arm_mode && !s_menu && !arm_is_relaxed();
     const float dz = jog_enabled ? pad_axis_dz() : 0.0f;
     const float dr = jog_enabled ? pad_axis_dr() : 0.0f;
@@ -286,6 +317,9 @@ void arm_button_apply(uint32_t now_ms)
     if (s_endpoint_active) {
         if (arm_action_get_state() == ActionState::kRunning) {
             arm_action_cancel();
+        }
+        if (arm_shake_is_running()) {
+            arm_shake_cancel();
         }
         (void)arm_endpoint_jog(now_ms, dz, dr);
     } else {
@@ -300,6 +334,7 @@ void arm_button_apply(uint32_t now_ms)
      * 两种操作对象模式、两种 UI 模式下都生效：它是"停止"语义。 */
     if ((events & kArmBtnSelect) != 0U) {
         arm_action_cancel();
+        arm_shake_cancel();
         return;
     }
 
