@@ -7,17 +7,20 @@
 #include "gpio.h"
 
 // PS2手柄的输入输出端口定义
+// 2026/10/21 从 PA15/PB3/PB4/PB5 整体迁到 PB12~PB15（四脚均为普通 GPIO，
+// 原脚位让回空闲池——PA15/PB3/PB4 是 JTAG 复用脚，留作它用更干净）。
+// 改线只动这里四个宏 + 实物把四根线插到对应引脚，PS2_Init() 会自动重配。
 #define DI_PORT     GPIOB
-#define DI_PIN      GPIO_PIN_4
+#define DI_PIN      GPIO_PIN_14     // DATA（输入上拉）
 
 #define CMD_PORT    GPIOB
-#define CMD_PIN     GPIO_PIN_5
+#define CMD_PIN     GPIO_PIN_15     // COMMAND（推挽输出）
 
-#define CS_PORT     GPIOA
-#define CS_PIN      GPIO_PIN_15
+#define CS_PORT     GPIOB
+#define CS_PIN      GPIO_PIN_12     // CS/ATT 片选（推挽输出）
 
 #define CLK_PORT    GPIOB
-#define CLK_PIN     GPIO_PIN_3
+#define CLK_PIN     GPIO_PIN_13     // CLOCK（推挽输出）
 
 // 宏定义简化IO操作
 #define DI()        HAL_GPIO_ReadPin(DI_PORT, DI_PIN)
