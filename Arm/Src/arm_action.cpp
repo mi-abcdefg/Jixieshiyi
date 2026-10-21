@@ -25,8 +25,15 @@
 namespace {
 
 /* ------------------------------ 引擎参数 ------------------------------ */
-constexpr uint32_t kHoldMs = 300U;     // 关键帧到位后的停留时间
+constexpr uint32_t kHoldMs = 220U;     // 关键帧到位后的停留时间（原 300，提速）
 constexpr float kTickS = 0.020f;       // 推进周期 [s]，须与 ArmTask 周期一致
+
+/* 动作巡航角速度 [°/s]：**动作引擎专用**，与点动快速档（90/60/60，摇杆用）
+ * 脱钩——2026/10/21 实测平滑后偏慢，整体提速约 1.4×；点动手感不受影响。
+ * 平滑逼近的速度上限就是这个值（远端恒速巡航），嫌慢/嫌快只动这里。 */
+constexpr float kCruiseBaseDps = 125.0f;      // 底座（原借用点动 90）
+constexpr float kCruiseShoulderDps = 85.0f;   // 大臂（原借用点动 60）
+constexpr float kCruiseElbowDps = 85.0f;      // 小臂（原借用点动 60）
 constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角阈值
 
 /* ---------------------- 篮内区判定（暂定值，待实车复核） ----------------------
@@ -312,10 +319,10 @@ bool begin_frame(KeyframeId id)
  *   实际速度以有限加速度逼近期望速度。
  * 原实现是恒角速度步进、到位瞬间吸附终点——速度阶跃直接砸在舵机上，
  * 急停抖动明显。斜坡化之后起步/到位都是渐变，HOLD 停留时长不变。
- * 参数取值：增益 5/s ⇒ 距目标 12° 时开始减速；加速度 300°/s² ⇒ 肩/肘
- * 约 0.2s、底座约 0.3s 从静止到巡航。 */
+ * 参数取值：增益 5/s ⇒ 距目标 v巡航/5 时开始减速；加速度 450°/s² ⇒
+ * 肩/肘约 0.19s、底座约 0.28s 从静止到巡航。 */
 constexpr float kApproachGain = 5.0f;      // 位置误差 → 期望速度 [1/s]
-constexpr float kApproachAccel = 300.0f;   // 速度斜坡的加速度上限 [°/s²]
+constexpr float kApproachAccel = 450.0f;   // 速度斜坡的加速度上限 [°/s²]
 constexpr float kArriveEpsDeg = 0.4f;      // 到位吸附门槛 [°]
 
 /**
@@ -573,19 +580,19 @@ void arm_action_update(uint32_t now_ms)
     bool link2_done = true;
     if (base_live) {
         base_done = approach(pose.base_z_deg, s_tgt_base,
-                             ARM_MANUAL_BASE_MAX_DPS, s_vel_base);
+                             kCruiseBaseDps, s_vel_base);
     } else {
         s_vel_base = 0.0f;      // 本帧不通电的关节不做平滑，速度状态清零
     }
     if (link1_live) {
         link1_done = approach(pose.link1_deg, s_tgt_link1,
-                              ARM_MANUAL_SHOULDER_MAX_DPS, s_vel_link1);
+                              kCruiseShoulderDps, s_vel_link1);
     } else {
         s_vel_link1 = 0.0f;
     }
     if (link2_live) {
         link2_done = approach(pose.link2_deg, s_tgt_link2,
-                              ARM_MANUAL_ELBOW_MAX_DPS, s_vel_link2);
+                              kCruiseElbowDps, s_vel_link2);
     } else {
         s_vel_link2 = 0.0f;
     }
