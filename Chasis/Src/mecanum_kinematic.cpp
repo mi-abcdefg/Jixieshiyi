@@ -112,6 +112,28 @@ void mecanum_get_wheel_speeds(float vx,
         }
     }
 
+    // A 车四轮前馈特调（等差数列，逐轮修正起步灵敏度差，宏注释有调法）：
+    //   FL = −1.5d / FR = −0.5d / BL = +0.5d / BR = +1.5d，中位数 = 0。
+    // 只对"有指令"的轮子生效（带符号叠加，倒车同样成立）；0 速轮不动，
+    // 车不会自己爬行。
+    const float trim[4] = {
+        -1.5f * MECANUM_COMP_TRIM_STEP_MPS,     // FL：最灵敏，减得最多
+        -0.5f * MECANUM_COMP_TRIM_STEP_MPS,     // FR
+        +0.5f * MECANUM_COMP_TRIM_STEP_MPS,     // BL
+        +1.5f * MECANUM_COMP_TRIM_STEP_MPS,     // BR：最迟钝，加得最多
+    };
+    for (uint8_t i = 0U; i < 4U; ++i)
+    {
+        if (wheel_speeds[i] > 0.0f)
+        {
+            wheel_speeds[i] += trim[i];
+        }
+        else if (wheel_speeds[i] < 0.0f)
+        {
+            wheel_speeds[i] -= trim[i];
+        }
+    }
+
     // 补偿后的二次限幅：保证任何轮速都不超满量程（下游按满量程换算占空比，
     // 电机驱动虽对上限有夹取，但在这里夹齐可避免四个轮子被截断的程度不一致）。
     for (uint8_t i = 0U; i < 4U; ++i)
