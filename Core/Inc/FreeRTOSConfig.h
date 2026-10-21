@@ -140,7 +140,7 @@ standard names. */
  * 覆盖回默认值 3072。而本工程 4 个任务的栈加起来约 4.6 KB：
  *     RemoteCommTask     256 字 = 1024 B
  *     ChasisControlTask  512 字 = 2048 B
- *     TestTask           256 字 = 1024 B
+ *     Ps2LinkLedTask     256 字 = 1024 B
  *     defaultTask        128 字 =  512 B
  * 再加 4 个 TCB 和 heap_4 的块头，总共约 5 KB。3072 只够创建 3 个任务。
  *

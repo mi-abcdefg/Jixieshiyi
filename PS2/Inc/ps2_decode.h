@@ -39,6 +39,13 @@
 #define PS2_BTN_CROSS       0x40u   // btn2 ×
 #define PS2_BTN_SQUARE      0x80u   // btn2 □
 
+/* --------------------------- 链路判据（唯一数据源） ---------------------------
+ * 合法 PS2 应答的第 2 个字节恒为 0x41 / 0x73；链路断开时 DATA 上拉读到
+ * 0xFF，模式字节不是这两个值。全工程（链路状态灯、ArmTask 等）判
+ * "手柄已连上"一律用这两个常量与 ps2_get_mode() 比对。 */
+#define PS2_MODE_ANALOG     0x73u   // 已连上 + 模拟模式（摇杆有效）
+#define PS2_MODE_DIGITAL    0x41u   // 已连上 + 数字模式（按键有效，摇杆无效）
+
 #ifdef __cplusplus
 class PS2 {
 public:

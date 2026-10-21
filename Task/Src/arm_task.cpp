@@ -43,10 +43,6 @@
 /* ------------------------------ 周期 ------------------------------ */
 #define ARM_TASK_PERIOD_MS        20U    // 与动作引擎 20ms 指令节拍严格一致
 
-/* PS2 模式字节：只有这两个值代表"已连上"（判据见 TestTask 顶部说明） */
-#define PS2_MODE_ANALOG           0x73u
-#define PS2_MODE_DIGITAL          0x41u
-
 /* 摇杆中位与归一化满量程（解码层死区 118~138 已折回 128） */
 #define STICK_CENTER              128.0f
 #define STICK_RANGE               128.0f
@@ -105,7 +101,7 @@ void ArmTask::run() {
         const uint32_t now_ms = osKernelSysTick();
 
         /* ---------------- 手柄连接状态 ----------------
-         * 模式字节是 0x73 / 0x41 才代表链路正常（与 TestTask 的判据一致） */
+         * 判据常量 PS2_MODE_* 的唯一数据源在 ps2_decode.h */
         const uint8_t ps2_mode = ps2_get_mode();
         const bool connected =
             (ps2_mode == PS2_MODE_ANALOG) || (ps2_mode == PS2_MODE_DIGITAL);

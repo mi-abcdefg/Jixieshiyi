@@ -27,7 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "remote_comm_task.h"
 #include "chasis_control_task.h"
-#include "test_task.h"
+#include "ps2_link_led_task.h"
 #include "arm_task.h"
 /* USER CODE END Includes */
 
@@ -86,7 +86,7 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
   remote_comm_task_init();
   chasis_control_task_init();
-  test_task_init();
+  ps2_link_led_task_init();
   arm_task_init();
   /* USER CODE END Init */
 

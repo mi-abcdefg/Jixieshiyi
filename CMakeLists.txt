@@ -68,8 +68,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         Task/TaskBase.h
         Task/Inc/remote_comm_task.h
         Task/Src/remote_comm_task.cpp
-        Task/Inc/test_task.h
-        Task/Src/test_task.cpp)
+        Task/Inc/ps2_link_led_task.h
+        Task/Src/ps2_link_led_task.cpp)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
