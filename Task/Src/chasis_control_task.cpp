@@ -100,8 +100,10 @@ void ChasisControlTask::run() {
             }
         }
 
-        // ---------------- 十字键定距平移（仅底盘模式） ----------------
-        // 点按（< TAP_MS）走一段固定距离，长按按住期间持续走、松手即停。
+        // ---------------- 十字键平移（虚拟摇杆，仅底盘模式） ----------------
+        // 速度约定与摇杆同源：比例 × 满量程（见 chasis_control_task.h），
+        // 经同一条解算管线，L1 中速档自动生效；固定慢速档不影响十字键。
+        // 点按（< TAP_MS）补完一步，长按按住期间持续走、松手即停。
         const bool pad_enabled = (control_mode_get() == CONTROL_MODE_CHASSIS);
         const bool pad_up    = pad_enabled && (btn1 & PS2_BTN_UP)    != 0;
         const bool pad_down  = pad_enabled && (btn1 & PS2_BTN_DOWN)  != 0;
@@ -115,11 +117,9 @@ void ChasisControlTask::run() {
             }
             // 按住期间不断续期"走到这个时刻"，即持续移动
             pad_step_until_ms = now_ms + CHASIS_PAD_STEP_MS;
-            // 方向记忆：松杆补完点按步时保持原方向。
-            // **必须与左摇杆同号**：摇杆上推时原始值变小，所以 vx<0 才是摇杆算出来的
-            // "前"；左右同理（LR 变小 = vx<0 那一侧）。原来这里写成
-            // "上=+vx、左=+vy"，与摇杆正好相反——按 ↑ 实际往后、按 ← 实际往右，
-            // 和"十字键不走"的现象是一起来的（2026/10/21 修）。
+            // 方向记忆：松开补完点按步时保持原方向。
+            // 正负号与左摇杆推杆方向严格同号（推杆原始值上推变小 ⇒ 摇杆的
+            // "前" = vx<0），十字键与摇杆因此可以无缝互换（2026/10/21 修）。
             pad_vx_cmd = (pad_down ? 1.0f : 0.0f) - (pad_up ? 1.0f : 0.0f);
             pad_vy_cmd = (pad_right ? 1.0f : 0.0f) - (pad_left ? 1.0f : 0.0f);
         } else if (pad_was_active) {
@@ -134,9 +134,12 @@ void ChasisControlTask::run() {
         const bool pad_driving = pad_active ||
                                  (static_cast<int32_t>(now_ms - pad_step_until_ms) < 0);
         if (pad_driving) {
-            // 十字键优先于摇杆；平移期间旋转置零
-            vx    = pad_vx_cmd * CHASIS_PAD_SPEED_MPS;
-            vy    = pad_vy_cmd * CHASIS_PAD_SPEED_MPS;
+            // 十字键优先于摇杆；平移期间旋转置零。
+            // 速度 = 比例 × 满量程（虚拟摇杆），中速档的 ×0.8 由解算层
+            // throttle 统一生效，这里不重复乘。
+            const float pad_speed = MECANUM_MAX_SPEED * CHASIS_PAD_SPEED_RATIO;
+            vx    = pad_vx_cmd * pad_speed;
+            vy    = pad_vy_cmd * pad_speed;
             omega = 0.0f;
         }
 
