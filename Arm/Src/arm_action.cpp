@@ -40,16 +40,18 @@ constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角
 constexpr float kInBasketBaseUserMin = 160.0f;
 constexpr float kInBasketShoulderUserMax = 100.0f;
 
-/* "不走回头路"的位置门槛（用户角）：起步时满足以下任一 → 不做回头路
- * 优化，老老实实按路径先经过过渡高点——低位起步若省掉抬升折返，臂会
- * 贴着低矮障碍直插终点（2026/10/21 实测）：
+/* "不走回头路"的位置门槛（用户角）：基座在篮子侧半区（> 90°），且满足
+ * 以下任一 → 不做回头路优化，老老实实按路径先经过渡高点——低位起步若
+ * 省掉抬升折返，臂会贴着低矮障碍直插终点（2026/10/21 实测）：
  *   1. 大臂 < 60° 且 小臂 < 75°（整臂收拢贴地）；
  *   2. 大臂 < 45°（大臂压得特别低，单条件触发）。
- * 注意肘的用户角 = 命令角 + 120（换算见 arm_keyframe.h），比较统一在
- * 用户角域做。 */
+ * 注意：肘的用户角 = 命令角 + 120、底座的用户角 = 命令角 − 90（换算见
+ * arm_keyframe.h），比较统一在用户角域做；底座 90° = 初始方位（臂朝车头），
+ * 大于 90° 即基座已转向篮子侧。 */
 constexpr float kNoBacktrackShoulderUserMin = 60.0f;
 constexpr float kNoBacktrackElbowUserMin = 75.0f;
 constexpr float kNoBacktrackShoulderLowDeg = 45.0f;
+constexpr float kNoBacktrackBaseUserMin = 90.0f;
 
 /* ------------------- 动作路径（关键帧编号的序列） ------------------- */
 
@@ -340,11 +342,12 @@ void plan_no_backtrack(void)
         return;
     }
 
-    /* 触发任一门槛（整臂收拢贴地，或大臂压得特别低）时不启用本优化：
-     * 必须按完整路径先走到过渡高点，见 kNoBacktrack* 注释 */
-    if ((link1_cmd_to_user(cur.link1_deg) < kNoBacktrackShoulderUserMin &&
-         link2_cmd_to_user(cur.link2_deg) < kNoBacktrackElbowUserMin) ||
-        link1_cmd_to_user(cur.link1_deg) < kNoBacktrackShoulderLowDeg) {
+    /* 基座在篮子侧半区，且触发任一臂位门槛时，不启用本优化：必须按
+     * 完整路径先走到过渡高点，见 kNoBacktrack* 注释 */
+    if (base_cmd_to_user(cur.base_z_deg) > kNoBacktrackBaseUserMin &&
+        ((link1_cmd_to_user(cur.link1_deg) < kNoBacktrackShoulderUserMin &&
+          link2_cmd_to_user(cur.link2_deg) < kNoBacktrackElbowUserMin) ||
+         link1_cmd_to_user(cur.link1_deg) < kNoBacktrackShoulderLowDeg)) {
         return;
     }
 
