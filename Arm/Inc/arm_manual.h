@@ -28,12 +28,17 @@
 #define ARM_MANUAL_ELBOW_MAX_DPS     60.0f  // 肘（相对肩连杆的夹角）
 
 #define ARM_MANUAL_DEADZONE          0.02f  // 归一化输入死区（解码层已有 ±10 原始死区）
+/* 动作打断阈值：动作运行中，杆量越过该值才视为"手动接管意图"。
+ * **必须显著大于点动死区**——否则摇杆静置漂移会把刚启动的动作在第一帧
+ * 就取消，实测表现为"动作永远停在第一个过渡点"（交接文档踩坑 13）。
+ * 判定逻辑在 arm_button（E5 的绑定处），本宏是唯一阈值来源。 */
+#define ARM_MANUAL_INTERRUPT_DEADZONE 0.15f
 #define ARM_MANUAL_MAX_DT_MS         100U   // 单周期dt上限，防长阻塞后步长突跳
 
 /* ------------------------------ 调速档位 ------------------------------ */
 /* 两档循环：0 = 快速（上表速度），1 = 慢速（各关节角速度 × 比例）。
- * 上电默认快速。本分支切档入口（原 L1 绑定在 robot_control）已随
- * 动作序列一并移除，暂无法切档；重建时恢复绑定。 */
+ * 上电默认快速。切档入口是 L1 边沿，绑定在 arm_button（机械臂模式）。
+ * 注意：动作引擎的速度**不受**本档影响，恒用快速档数值。 */
 #define ARM_MANUAL_SLOW_DPS_SCALE    0.5f
 
 #ifdef __cplusplus
@@ -47,8 +52,7 @@ void arm_manual_init(void);
 
 /**
  * @brief 点动调速档循环切换（快 → 慢 → 快……）
- * @note  本分支无调用方（原由 robot_control 在 L1 边沿调用，已随动作
- *        序列移除），保留接口供重建时恢复绑定
+ * @note  由 arm_button 在 L1 边沿调用（机械臂模式下，动作运行中也允许切）
  */
 void arm_manual_cycle_speed_level(void);
 

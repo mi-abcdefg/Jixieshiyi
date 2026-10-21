@@ -1,9 +1,61 @@
 //
-// 夹爪独立模块实现（本分支仅保留点动）
+// 夹爪独立模块实现（三态：开 / 合 / 未定义）
 //
 
 #include "gripper.h"
 #include "servo_driver.h"
+
+static GripperState_t gripper_state = GRIPPER_UNDEF;
+
+void gripper_init(void)
+{
+    gripper_state = GRIPPER_UNDEF;
+}
+
+bool gripper_set(GripperState_t state)
+{
+    bool ok = false;
+
+    switch (state)
+    {
+    case GRIPPER_OPEN:
+        ok = servo_set_angle(SERVO_GRIPPER, GRIPPER_OPEN_DEG);
+        break;
+    case GRIPPER_CLOSE:
+        ok = servo_set_angle(SERVO_GRIPPER, GRIPPER_CLOSE_DEG);
+        break;
+    default:
+        return false;   // 未定义不是一个可下发的目标
+    }
+
+    if (ok)
+    {
+        gripper_state = state;
+    }
+    return ok;
+}
+
+bool gripper_toggle(void)
+{
+    float current = 0.0f;
+    if (!servo_get_commanded_angle(SERVO_GRIPPER, &current))
+    {
+        return false;
+    }
+
+    /* 以两档中点为界：当前偏闭合档则张开，反之闭合。
+     * 开/合方向若颠倒（实物标定后），翻转这里的比较方向即可，
+     * 不要改 GRIPPER_OPEN_DEG / GRIPPER_CLOSE_DEG 的物理含义（交接文档 §10）。 */
+    const float midpoint = 0.5f * (GRIPPER_OPEN_DEG + GRIPPER_CLOSE_DEG);
+    const GripperState_t target =
+        (current >= midpoint) ? GRIPPER_OPEN : GRIPPER_CLOSE;
+    return gripper_set(target);
+}
+
+GripperState_t gripper_get_state(void)
+{
+    return gripper_state;
+}
 
 void gripper_jog(float rate_norm, float dt_s)
 {
@@ -35,5 +87,8 @@ void gripper_jog(float rate_norm, float dt_s)
         angle = min_deg;
     }
 
-    (void)servo_set_angle(SERVO_GRIPPER, angle);
+    if (servo_set_angle(SERVO_GRIPPER, angle))
+    {
+        gripper_state = GRIPPER_UNDEF;   // 离开命名档位，状态不再可描述
+    }
 }

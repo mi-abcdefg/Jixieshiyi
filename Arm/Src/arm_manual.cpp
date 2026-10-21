@@ -4,8 +4,8 @@
 // 依赖：arm_control（读/写关节姿态）、servo_driver（读各关节命令角域）、
 // gripper（夹爪以独立模块管理，点动经 gripper_jog）。
 // 不感知 PS2 与控制模式——模式分流由 arm_task 编排层完成。
-// 本模块的各关节角速度宏是重建动作引擎时的既定速度数据源
-// （见 docs/机械臂动作模块重建交接.md）。
+// 本文件的各关节角速度宏（ARM_MANUAL_*_MAX_DPS）同时是动作引擎的速度
+// 数据源（arm_action 直接引用），改速度只需改这里一处。
 //
 
 #include "arm_manual.h"

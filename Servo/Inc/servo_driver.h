@@ -19,14 +19,16 @@
 
 /* --------------------------- 舵机功能编号 ---------------------------
  * 编号按机械臂功能命名（与物理从下到上顺序无关），上层（arm_control /
- * arm_manual）一律用编号，编号→定时器通道的映射只存在于
+ * arm_action / arm_manual）一律用编号，编号→定时器通道的映射只存在于
  * servo_driver.cpp 的配置表里。
  *
  * 实际接线（通道辨识测试确认，机构从下往上仍是 底座→肩→肘→夹爪）：
- *   PB6/TIM4_CH1  夹爪 SG90（SERVO_GRIPPER）
+ *   PB9/TIM4_CH4  夹爪 SG90（SERVO_GRIPPER）
  *   PB7/TIM4_CH2  肩关节 SG90 —— 带 11cm 第一连杆（SERVO_LINK_1）
  *   PB8/TIM4_CH3  肘关节 SG90 —— 带 8.5cm 第二连杆（SERVO_LINK_2）
- *   PB9/TIM4_CH4  底座 MG995 —— 整臂绕 Z 轴旋转（SERVO_BASE_Z）
+ *   PB6/TIM4_CH1  底座 MG995 —— 整臂绕 Z 轴旋转（SERVO_BASE_Z）
+ * 判据是通道辨识的**观测**：命令底座时动的是夹爪，说明底座的命令落在夹爪
+ * 那一路（PB9）——因此 底座=PB6、夹爪=PB9。下文编号注释与此一致。
  * ------------------------------------------------------------------ */
 typedef enum {
     SERVO_GRIPPER = 0,   // 夹爪（PB9，SG90）
@@ -72,19 +74,35 @@ bool servo_get_commanded_angle(ServoId_t servo, float *angle_deg);
 bool servo_get_angle_range(ServoId_t servo, float *min_deg, float *max_deg);
 
 /**
- * @brief 机械臂整体卸力/恢复
+ * @brief 机械臂整体卸力/恢复（四路一起）
  *
  * 卸力：四路 CCR 全部清零，20ms 周期内不再输出任何有效脉冲，舵机
  * 失去保持力矩（可徒手掰动）。卸力期间 servo_set_pulse/set_angle
- * 一律拒绝写入，防止点动或动作把舵机悄悄重新上力。
+ * 对该路一律拒绝写入，防止点动或动作把舵机悄悄重新上力。
  * 恢复：按卸力前记录的命令角重写脉宽，臂回到卸力前的姿态。
+ *
+ * @note 需要"逐路"给力时用 servo_set_torque_one()（"脱离"动作就是先只让
+ *       大臂（肩）有力、底座与其余关节继续保持卸力）。
  */
 void servo_set_torque_enabled(bool enabled);
 
 /**
- * @brief 当前是否处于有力状态（true = 正常输出脉冲）
+ * @brief 当前是否四路都有力（true = 全部正常输出脉冲；部分有力返回 false）
  */
 bool servo_is_torque_enabled(void);
+
+/**
+ * @brief 单路卸力/恢复
+ * @param servo   舵机编号
+ * @param enabled true = 该路给力（有记录角时按记录角重发脉宽），false = 该路卸力（CCR 清 0）
+ * @return false 仅当编号非法；状态无变化时返回 true（幂等）
+ */
+bool servo_set_torque_one(ServoId_t servo, bool enabled);
+
+/**
+ * @brief 该路当前是否有脉冲输出
+ */
+bool servo_is_torque_one(ServoId_t servo);
 
 #ifdef __cplusplus
 }

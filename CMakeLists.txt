@@ -47,6 +47,14 @@ add_executable(${CMAKE_PROJECT_NAME}
         Arm/Src/arm_ik.cpp
         Arm/Inc/arm_manual.h
         Arm/Src/arm_manual.cpp
+        Arm/Inc/arm_keyframe.h
+        Arm/Src/arm_keyframe.cpp
+        Arm/Inc/arm_action.h
+        Arm/Src/arm_action.cpp
+        Arm/Inc/arm_button.h
+        Arm/Src/arm_button.cpp
+        Arm/Inc/arm_endpoint.h
+        Arm/Src/arm_endpoint.cpp
         ControlMode/Inc/control_mode.h
         ControlMode/Src/control_mode.cpp
         Task/Inc/chasis_control_task.h

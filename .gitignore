@@ -1,0 +1,11 @@
+# 构建产物与 IDE 配置（cmake-build-*/ 目录里 CMake 会自带 .gitignore，这里只管 CLion 另建的目录）
+build/
+.idea/
+
+# 编译中间件散落文件
+*.o
+*.obj
+*.elf
+*.map
+*.bin
+*.hex

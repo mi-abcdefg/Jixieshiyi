@@ -63,6 +63,10 @@ void ChasisControlTask::run() {
         //   左摇杆上下 -> vx 前进/后退
         //   左摇杆左右 -> vy 原地平移
         //   右摇杆左右 -> omega 原地旋转（右摇杆上下：机械臂肩关节，见 ArmTask）
+        // 符号约定：手柄上推/左推时原始值变小，所以"上推"算出 vx<0、"左推"算出 vy<0，
+        // 全工程的 vx/vy 正负都以这里为准（十字键定距平移必须同号，见下面的 pad_*_cmd）。
+        // 物理上是"上推=前进"还是"上推=后退"，取决于电机接线与 MOTOR_INVERT_xx（已按实车修正），
+        // 不要在别处再定义一套方向。
         float vx = (left_analog[1] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 前进/后退速度
         float vy = (left_analog[0] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 左/右速度
         float omega = (right_analog[0] - 128) / 128.0f * MECANUM_MAX_OMEGA_RADPS; // 旋转角速度
@@ -111,9 +115,13 @@ void ChasisControlTask::run() {
             }
             // 按住期间不断续期"走到这个时刻"，即持续移动
             pad_step_until_ms = now_ms + CHASIS_PAD_STEP_MS;
-            // 方向记忆：松杆补完点按步时保持原方向
-            pad_vx_cmd = (pad_up ? 1.0f : 0.0f) - (pad_down ? 1.0f : 0.0f);
-            pad_vy_cmd = (pad_left ? 1.0f : 0.0f) - (pad_right ? 1.0f : 0.0f);
+            // 方向记忆：松杆补完点按步时保持原方向。
+            // **必须与左摇杆同号**：摇杆上推时原始值变小，所以 vx<0 才是摇杆算出来的
+            // "前"；左右同理（LR 变小 = vx<0 那一侧）。原来这里写成
+            // "上=+vx、左=+vy"，与摇杆正好相反——按 ↑ 实际往后、按 ← 实际往右，
+            // 和"十字键不走"的现象是一起来的（2026/10/21 修）。
+            pad_vx_cmd = (pad_down ? 1.0f : 0.0f) - (pad_up ? 1.0f : 0.0f);
+            pad_vy_cmd = (pad_right ? 1.0f : 0.0f) - (pad_left ? 1.0f : 0.0f);
         } else if (pad_was_active) {
             // 松开：点按则补完整一步，长按则立即停
             pad_step_until_ms = (now_ms - pad_start_ms < CHASIS_PAD_TAP_MS)
@@ -142,16 +150,19 @@ void ChasisControlTask::run() {
             omega = 0.0f;
         }
 
-        // 运动学解算：得到四个轮子的线速度 [m/s]
+        // 运动学解算：得到四个轮子的线速度 [m/s]。
+        // 档位缩放交给解算层（throttle_scale），**不能**再乘在解算之后的指令上：
+        // 那样会把"起步下限（阻力前馈）"一起缩小（0.8×60% = 48%），
+        // 中速档小油门又会出现"推了不动"。固定慢速档（==2）的速度已在上面
+        // 直接按档位速度生成，所以它的 throttle 是 1.0。
+        const float throttle = (speed_level == 1U) ? CHASIS_SLOW_MODE_SCALE : 1.0f;
+
         float wheel_speeds[4];
-        mecanum_get_wheel_speeds(vx, vy, omega, wheel_speeds);
+        mecanum_get_wheel_speeds(vx, vy, omega, throttle, wheel_speeds);
 
         // 量纲换算：轮子线速度 [m/s] -> 速度指令 [0 ~ MOTOR_CMD_MAX]。
-        // MECANUM_MAX_SPEED 是满量程轮速，对应 100% 占空比；
-        // 中速档（speed_level==1）整体乘一个系数（平移和旋转一起降速）；
-        // 固定慢速档（==2）的速度已在上面直接按档位速度生成，不再缩放。
-        const float speed_factor = (speed_level == 1U) ? CHASIS_SLOW_MODE_SCALE : 1.0f;
-        const float cmd_scale = static_cast<float>(MOTOR_CMD_MAX) / MECANUM_MAX_SPEED * speed_factor;
+        // MECANUM_MAX_SPEED 是满量程轮速，对应 100% 占空比。
+        const float cmd_scale = static_cast<float>(MOTOR_CMD_MAX) / MECANUM_MAX_SPEED;
 
         // 设置轮子速度。驱动被 L2 关断时，Motor::set_wheel_speed() 内部会自动按 0 输出，
         // 所以这里正常下发即可，不需要再判断使能状态。
