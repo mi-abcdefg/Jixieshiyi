@@ -1,5 +1,9 @@
 //
-// 机械臂末端点动实现（柱坐标：正解 → 增量 → 逆解 → 关节增量限速 → 下发）
+// 机械臂末端点动实现（平面柱坐标：正解 → 增量 → 工作区夹取 → 逆解 → 限速）
+//
+// 解算只涉及肩/肘两支舵机（平面二连杆，底座保持不动）。
+// 工作区夹取在本文件是唯一所有者；arm_ik_solve 一次返回肘上/肘下两支，
+// 这里取离当前关节角更近的一支，保证手臂不跨支。
 //
 
 #include "arm_endpoint.h"
@@ -12,8 +16,6 @@
 #include <math.h>
 
 namespace {
-
-constexpr float ARM_ENDPOINT_RAD2DEG = 57.2957795f;   // 180/π，解支比较用
 
 uint32_t s_last_ms = 0U;
 bool s_has_last = false;
@@ -94,56 +96,42 @@ bool arm_endpoint_jog(uint32_t now_ms, float dz_dir, float dr_dir)
         return false;
     }
 
-    float theta_deg = 0.0f;
     float r_m = 0.0f;
     float z_m = 0.0f;
-    arm_ik_forward(pose.base_z_deg,
-                   pose.link1_deg - ARM_ENDPOINT_SHOULDER_OFFSET_DEG,
-                   pose.link2_deg,
-                   &theta_deg, &r_m, &z_m);
+    arm_ik_forward(pose.link1_deg - ARM_ENDPOINT_SHOULDER_OFFSET_DEG,
+                   pose.link2_deg, &r_m, &z_m);
 
-    /* ---------------- 给末端一个小位移 ---------------- */
+    /* ---------------- 给末端一个小位移，夹回工作区（唯一夹取点） ---------------- */
     r_m += dr_dir * ARM_ENDPOINT_R_MPS * dt_s;
     z_m += dz_dir * ARM_ENDPOINT_Z_MPS * dt_s;
     clamp_to_workspace(r_m, z_m);
 
-    /* ---------------- 逆解 → 目标命令角 ----------------
-     * arm_ik_solve 固定返回"肘上"解，但臂完全可能停在"肘下"那一支
-     * （摇杆把肘点到正角度就是这样）。若直接下发肘上解，肘会翻到另一侧，
-     * 表现为"四个方向键都变成同一个动作、末端跳一下"。所以这里把两支解
-     * 都算出来，取离当前关节角更近的一支，保持手臂不跨支。 */
-    ArmJointAngles_t ik;
-    if (!arm_ik_solve(theta_deg, r_m, z_m, &ik)) {
+    /* ---------------- 逆解：两支解取离当前关节角更近的一支 ----------------
+     * 臂完全可能停在"肘下"那一支（摇杆把肘点到正角度就是这样），
+     * 固定取某一支会让肘翻到另一侧，表现为"四个方向键都变成同一个动作"。
+     * 比较在命令角域进行（肩要加回几何↔命令的偏移）。 */
+    ArmIkBranches ik;
+    if (!arm_ik_solve(r_m, z_m, &ik)) {
         return false;
     }
 
-    float tgt_link1 = arm_clamp_angle(
-        SERVO_LINK_1, ik.link1_deg + ARM_ENDPOINT_SHOULDER_OFFSET_DEG);
-    float tgt_link2 = arm_clamp_angle(SERVO_LINK_2, ik.link2_deg);
+    const float up_link1 = arm_clamp_angle(
+        SERVO_LINK_1, ik.link1_up_deg + ARM_ENDPOINT_SHOULDER_OFFSET_DEG);
+    const float up_link2 = arm_clamp_angle(SERVO_LINK_2, ik.link2_up_deg);
+    const float dn_link1 = arm_clamp_angle(
+        SERVO_LINK_1, ik.link1_down_deg + ARM_ENDPOINT_SHOULDER_OFFSET_DEG);
+    const float dn_link2 = arm_clamp_angle(SERVO_LINK_2, ik.link2_down_deg);
 
-    /* 另一支解：肩 = 2ψ − 肩_肘上，肘 = −肘_肘上（ψ = 目标点相对肩关节的仰角） */
-    if (r_m > 1e-4f) {
-        const float psi_deg = atan2f(z_m, r_m) * ARM_ENDPOINT_RAD2DEG;
-        const float alt_link1 = arm_clamp_angle(
-            SERVO_LINK_1, 2.0f * psi_deg - ik.link1_deg + ARM_ENDPOINT_SHOULDER_OFFSET_DEG);
-        const float alt_link2 = arm_clamp_angle(SERVO_LINK_2, -ik.link2_deg);
+    const float up_dist = fabsf(up_link1 - pose.link1_deg) +
+                          fabsf(up_link2 - pose.link2_deg);
+    const float dn_dist = fabsf(dn_link1 - pose.link1_deg) +
+                          fabsf(dn_link2 - pose.link2_deg);
 
-        const float dist_up = fabsf(tgt_link1 - pose.link1_deg) +
-                              fabsf(tgt_link2 - pose.link2_deg);
-        const float dist_alt = fabsf(alt_link1 - pose.link1_deg) +
-                               fabsf(alt_link2 - pose.link2_deg);
-        if (dist_alt < dist_up) {
-            tgt_link1 = alt_link1;
-            tgt_link2 = alt_link2;
-        }
-    }
+    /* ---------------- 关节增量限速（防奇异区甩臂），只写肩/肘 ---------------- */
+    step_limited(pose.link1_deg, (dn_dist < up_dist) ? dn_link1 : up_link1,
+                 ARM_MANUAL_SHOULDER_MAX_DPS * dt_s);
+    step_limited(pose.link2_deg, (dn_dist < up_dist) ? dn_link2 : up_link2,
+                 ARM_MANUAL_ELBOW_MAX_DPS * dt_s);
 
-    /* ---------------- 关节增量限速（防奇异区甩臂） ---------------- */
-    step_limited(pose.link1_deg, tgt_link1, ARM_MANUAL_SHOULDER_MAX_DPS * dt_s);
-    step_limited(pose.link2_deg, tgt_link2, ARM_MANUAL_ELBOW_MAX_DPS * dt_s);
-    /* 底座保持当前方位（把当前值原样写回，等于"重新声明一次不动"） */
-
-    return arm_set_pose_masked(&pose,
-                               ARM_JOINT_SHOULDER | ARM_JOINT_ELBOW |
-                               ARM_JOINT_BASE_Z);
+    return arm_set_pose_masked(&pose, ARM_JOINT_SHOULDER | ARM_JOINT_ELBOW);
 }
