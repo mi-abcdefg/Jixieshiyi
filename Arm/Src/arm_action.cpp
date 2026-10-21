@@ -4,16 +4,13 @@
 // 数据与逻辑分离：本文件只有"哪几个关键帧、按什么顺序"，没有任何角度；
 // 角度全在 arm_keyframe.cpp 的表里。
 //
-// 本文件负责三件事（调用方都不用操心）：
+// 本文件负责两件事（调用方都不用操心）：
 //   1. 逐帧逼近：底座恒角速度直插（实测无需平滑）；大臂/小臂做斜坡平滑
 //      逼近（期望速度=误差×增益、实际速度限加速度——远端恒速巡航、近端
 //      比例减速，起步/急停都是渐变），到位后按帧切夹爪、停留 50ms；
 //   2. 逐帧给力：每帧只给 power 掩码里的关节通电（卸力恢复的"脱离"动作
-//      靠它先让大臂（肩）单独有力，其余关节仍软着）；
-//   3. 不走回头路：第 1 段位移与第 2 段方向相反时，把第 1 段退化为"保持"，
-//      净位移留到第 2 段一次走完（只作用于开头这一对，不改后续路径）。
+//      靠它先让大臂（肩）单独有力，其余关节仍软着）。
 //
-
 #include "arm_action.h"
 
 #include "arm_keyframe.h"
@@ -54,21 +51,6 @@ constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角
  * 另一半区"≤ 100"，物理含义改为压低半区。再错就只动这一个数。 */
 constexpr float kInBasketBaseUserMin = 160.0f;
 constexpr float kInBasketShoulderUserMax = 100.0f;
-
-/* "不走回头路"的位置门槛（用户角），2026/10/21 实测迭代后：
- *   1. 大臂 < 35°：无条件走完整路径（不再看基座在哪个半区）；
- *   2. 基座在篮子侧半区（> 90°）且满足以下任一 → 也走完整路径：
- *      a) 大臂 < 60° 且 小臂 < 75°（整臂收拢贴地）；
- *      b) 大臂 < 45°（大臂压得比较低，单条件触发）。
- * 其余位形正常启用回头路优化。注意：肘的用户角 = 命令角 + 120、底座的
- * 用户角 = 命令角 − 90（换算见 arm_keyframe.h），比较统一在用户角域做。
- * 若实测仍不理想，把 plan_no_backtrack() 开头的规划整体停用即可
- * （路径原样逐帧走，该优化本来就是纯省时的）。 */
-constexpr float kNoBacktrackShoulderVeryLowDeg = 35.0f;   // 无条件触发线
-constexpr float kNoBacktrackShoulderUserMin = 60.0f;
-constexpr float kNoBacktrackElbowUserMin = 75.0f;
-constexpr float kNoBacktrackShoulderLowDeg = 45.0f;
-constexpr float kNoBacktrackBaseUserMin = 90.0f;
 
 /* ------------------- 动作路径（关键帧编号的序列） ------------------- */
 
@@ -219,11 +201,6 @@ float s_vel_base = 0.0f;
 float s_vel_link1 = 0.0f;
 float s_vel_link2 = 0.0f;
 
-/* "不走回头路"的挂起项：某一帧对某些关节退化为保持（只作用于开头那一对） */
-bool s_nb_pending = false;
-KeyframeId s_nb_id = KeyframeId::kBasketHigh;
-uint32_t s_nb_mask = 0U;
-
 float absf(float v)
 {
     return (v < 0.0f) ? -v : v;
@@ -289,21 +266,6 @@ bool begin_frame(KeyframeId id)
     }
 
     compute_targets(kf, pose, s_tgt_base, s_tgt_link1, s_tgt_link2);
-
-    /* 不走回头路：开头那一对帧里被判"该保持"的关节，目标改回当前值，
-     * 净位移自然留到下一帧（下一帧的目标是绝对值，不受影响）。 */
-    if (s_nb_pending && id == s_nb_id) {
-        if ((s_nb_mask & ARM_JOINT_BASE_Z) != 0U) {
-            s_tgt_base = pose.base_z_deg;
-        }
-        if ((s_nb_mask & ARM_JOINT_SHOULDER) != 0U) {
-            s_tgt_link1 = pose.link1_deg;
-        }
-        if ((s_nb_mask & ARM_JOINT_ELBOW) != 0U) {
-            s_tgt_link2 = pose.link2_deg;
-        }
-        s_nb_pending = false;   // 只作用于开头这一对帧
-    }
 
     s_tgt_gripper = kf.gripper;   // GRIPPER_UNDEF = 本帧不动夹爪
     s_holding = false;
@@ -390,102 +352,6 @@ bool approach(float &angle_deg, float target_deg, float max_dps,
     return false;
 }
 
-/* 第 1 段位移（from→mid）与第 2 段位移（mid→to）方向相反？
- * 任一段为 0 不算相反（"保持"本身没有回头路可言）。 */
-bool opposite_legs(float from, float mid, float to)
-{
-    const float d1 = mid - from;
-    const float d2 = to - mid;
-    return (d1 * d2) < -kMoveEpsDeg;
-}
-
-/**
- * @brief 规划"不走回头路"（只在动作起点算一次）
- *
- * 找出路径里**第一段真正有位移**的关键帧 i（跳过只切夹爪、三关节全 KEEP 的
- * 过渡帧），再逐关节比较"进第 i 帧"与"第 i 帧→第 i+1 帧"两段位移：
- * 方向相反的关节在第 i 帧退化为"保持"，净位移由第 i+1 帧一次走完。
- * 例：进第 1 帧要逆时针 30°、进第 2 帧要顺时针 50° → 第 1 帧不动，
- * 第 2 帧顺时针 20°（终点完全一样，但不再先出去再折回来）。
- */
-void plan_no_backtrack(void)
-{
-    s_nb_pending = false;
-    s_nb_mask = 0U;
-
-    if (s_len < 2U || s_path == nullptr) {
-        return;
-    }
-
-    ArmPose_t cur;
-    if (!arm_get_pose(&cur)) {
-        return;
-    }
-
-    const float shoulder_user = link1_cmd_to_user(cur.link1_deg);
-    const float elbow_user = link2_cmd_to_user(cur.link2_deg);
-
-    /* 大臂特别低（< 35°）：无条件走完整路径，基座位置不再参与判断 */
-    if (shoulder_user < kNoBacktrackShoulderVeryLowDeg) {
-        return;
-    }
-
-    /* 基座在篮子侧半区，且触发任一臂位门槛时，不启用本优化：
-     * 必须按完整路径先走到过渡高点，见 kNoBacktrack* 注释 */
-    if (base_cmd_to_user(cur.base_z_deg) > kNoBacktrackBaseUserMin &&
-        ((shoulder_user < kNoBacktrackShoulderUserMin &&
-          elbow_user < kNoBacktrackElbowUserMin) ||
-         shoulder_user < kNoBacktrackShoulderLowDeg)) {
-        return;
-    }
-
-    /* 找第一段有位移的帧（它之前的帧全是不动的过渡帧，位形保持不变） */
-    uint8_t i = 0U;
-    float base_i = 0.0f;
-    float link1_i = 0.0f;
-    float link2_i = 0.0f;
-    for (; i + 1U < s_len; i++) {
-        compute_targets(get_keyframe(s_path[i]), cur, base_i, link1_i, link2_i);
-        const float moved = absf(base_i - cur.base_z_deg) +
-                            absf(link1_i - cur.link1_deg) +
-                            absf(link2_i - cur.link2_deg);
-        if (moved > kMoveEpsDeg) {
-            break;
-        }
-    }
-    if (i + 1U >= s_len) {
-        return;     // 整条路径都不动（或只剩一帧），无需规划
-    }
-
-    /* 下一帧的目标（kKeep 按"第 i 帧到位后"的位形解析） */
-    ArmPose_t after = cur;
-    after.base_z_deg = base_i;
-    after.link1_deg = link1_i;
-    after.link2_deg = link2_i;
-
-    float base_n = 0.0f;
-    float link1_n = 0.0f;
-    float link2_n = 0.0f;
-    compute_targets(get_keyframe(s_path[i + 1U]), after, base_n, link1_n, link2_n);
-
-    uint32_t mask = 0U;
-    if (opposite_legs(cur.base_z_deg, base_i, base_n)) {
-        mask |= ARM_JOINT_BASE_Z;
-    }
-    if (opposite_legs(cur.link1_deg, link1_i, link1_n)) {
-        mask |= ARM_JOINT_SHOULDER;
-    }
-    if (opposite_legs(cur.link2_deg, link2_i, link2_n)) {
-        mask |= ARM_JOINT_ELBOW;
-    }
-
-    if (mask != 0U) {
-        s_nb_id = s_path[i];
-        s_nb_mask = mask;
-        s_nb_pending = true;
-    }
-}
-
 /* 回到空闲：取消与正常完成共用（都不留中间态） */
 void reset_state(void)
 {
@@ -506,8 +372,6 @@ void reset_state(void)
     s_holding = false;
     s_power = ARM_JOINT_ALL;
     s_tgt_gripper = GRIPPER_UNDEF;
-    s_nb_pending = false;
-    s_nb_mask = 0U;
     s_vel_base = 0.0f;
     s_vel_link1 = 0.0f;
     s_vel_link2 = 0.0f;
@@ -544,10 +408,6 @@ bool arm_action_start(ActionId id, uint32_t now_ms)
     s_path = path->frames;
     s_len = path->count;
     s_index = 0U;
-
-    /* 规划"不走回头路"要读当前位形，必须在进第一帧之前做：
-     * begin_frame 会据此把第一段退化为保持。 */
-    plan_no_backtrack();
 
     if (!begin_frame(s_path[0])) {
         reset_state();
