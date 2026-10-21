@@ -39,16 +39,16 @@ void PS2::read_and_decode_JoystickData() {
     }
 
     //死区控制
-    if (temp_js_data.RJoy_LR < 138 && temp_js_data.RJoy_LR > 118) {
+    if (temp_js_data.RJoy_LR < 133 && temp_js_data.RJoy_LR > 123) {
         temp_js_data.RJoy_LR = 128;
     }
-    if (temp_js_data.RJoy_UD < 138 && temp_js_data.RJoy_UD > 118) {
+    if (temp_js_data.RJoy_UD < 133 && temp_js_data.RJoy_UD > 123) {
         temp_js_data.RJoy_UD = 128;
     }
-    if (temp_js_data.LJoy_LR < 138 && temp_js_data.LJoy_LR > 118) {
+    if (temp_js_data.LJoy_LR < 133 && temp_js_data.LJoy_LR > 123) {
         temp_js_data.LJoy_LR = 128;
     }
-    if (temp_js_data.LJoy_UD < 138 && temp_js_data.LJoy_UD > 118) {
+    if (temp_js_data.LJoy_UD < 133 && temp_js_data.LJoy_UD > 123) {
         temp_js_data.LJoy_UD = 128;
     }
 
