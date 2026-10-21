@@ -61,8 +61,6 @@ add_executable(${CMAKE_PROJECT_NAME}
         Task/Src/chasis_control_task.cpp
         Task/Inc/arm_task.h
         Task/Src/arm_task.cpp
-        Task/Inc/servo_test_task.h
-        Task/Src/servo_test_task.cpp
         PS2/Inc/ps2_driver.h
         PS2/Src/ps2_driver.cpp
         PS2/Inc/ps2_decode.h

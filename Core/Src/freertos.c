@@ -29,7 +29,6 @@
 #include "chasis_control_task.h"
 #include "test_task.h"
 #include "arm_task.h"
-#include "servo_test_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -89,12 +88,6 @@ void MX_FREERTOS_Init(void) {
   chasis_control_task_init();
   test_task_init();
   arm_task_init();
-  /* 舵机通道辨识（ServoTestTask）平时不启动。下次标定舵机时再启用，
-   * 并同时注释掉上面两行（避免抢写舵机脉宽 / PC13 报数灯冲突）：
-   *   // test_task_init();
-   *   // arm_task_init();
-   *   servo_test_task_init();                                      */
-  // servo_test_task_init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
