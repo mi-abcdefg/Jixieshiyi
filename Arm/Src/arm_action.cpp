@@ -5,7 +5,9 @@
 // 角度全在 arm_keyframe.cpp 的表里。
 //
 // 本文件负责三件事（调用方都不用操心）：
-//   1. 逐帧逼近：三关节各以恒角速度步进，到位后按帧切夹爪、停留 300ms；
+//   1. 逐帧逼近：三关节做斜坡平滑逼近（期望速度=误差×增益、实际速度限
+//      加速度——远端恒速巡航、近端比例减速，起步/急停都是渐变，恒速急停
+//      会让舵机抖动），到位后按帧切夹爪、停留 300ms；
 //   2. 逐帧给力：每帧只给 power 掩码里的关节通电（卸力恢复的"脱离"动作
 //      靠它先让大臂（肩）单独有力，其余关节仍软着）；
 //   3. 不走回头路：第 1 段位移与第 2 段方向相反时，把第 1 段退化为"保持"，
@@ -197,6 +199,13 @@ float s_tgt_link1 = 0.0f;
 float s_tgt_link2 = 0.0f;
 GripperState_t s_tgt_gripper = GRIPPER_UNDEF;   // 当前帧的夹爪目标（到位时切）
 
+/* 各关节的当前速度 [°/s]（动作平滑用，见 approach）。
+ * 每帧开始/非本帧通电的关节都清零——动作的节奏是"到位→停留"，帧与帧
+ * 之间速度本来就归零，清零不影响观感，还能防陈旧速度引起跳变。 */
+float s_vel_base = 0.0f;
+float s_vel_link1 = 0.0f;
+float s_vel_link2 = 0.0f;
+
 /* "不走回头路"的挂起项：某一帧对某些关节退化为保持（只作用于开头那一对） */
 bool s_nb_pending = false;
 KeyframeId s_nb_id = KeyframeId::kBasketHigh;
@@ -286,30 +295,65 @@ bool begin_frame(KeyframeId id)
     s_tgt_gripper = kf.gripper;   // GRIPPER_UNDEF = 本帧不动夹爪
     s_holding = false;
 
+    /* 每帧从静止开始：速度状态清零（到位吸附时本来就≈0，这里兜底） */
+    s_vel_base = 0.0f;
+    s_vel_link1 = 0.0f;
+    s_vel_link2 = 0.0f;
+
     /* 逐帧给力：例如"脱离"第 1 帧只让大臂（肩）有力，其余关节仍是软的 */
     apply_power_mask(kf.power);
     s_power = kf.power;
     return true;
 }
 
+/* ------------------------------ 动作平滑 ------------------------------
+ * 简单实用的梯形过渡：每关节维护一个速度状态，
+ *   期望速度 = 位置误差 × 增益（误差大 = 恒速巡航，误差小 = 比例减速），
+ *   实际速度以有限加速度逼近期望速度。
+ * 原实现是恒角速度步进、到位瞬间吸附终点——速度阶跃直接砸在舵机上，
+ * 急停抖动明显。斜坡化之后起步/到位都是渐变，HOLD 停留时长不变。
+ * 参数取值：增益 5/s ⇒ 距目标 12° 时开始减速；加速度 300°/s² ⇒ 肩/肘
+ * 约 0.2s、底座约 0.3s 从静止到巡航。 */
+constexpr float kApproachGain = 5.0f;      // 位置误差 → 期望速度 [1/s]
+constexpr float kApproachAccel = 300.0f;   // 速度斜坡的加速度上限 [°/s²]
+constexpr float kArriveEpsDeg = 0.4f;      // 到位吸附门槛 [°]
+
 /**
- * @brief 单关节朝目标恒角速度步进一个周期
- * @return true = 已到位（本周期精确落在目标上）
+ * @brief 单关节朝目标平滑逼近一个周期
+ * @return true = 已到位（误差收进门槛，已吸附终点，速度清零）
  */
-bool approach(float &angle_deg, float target_deg, float max_dps)
+bool approach(float &angle_deg, float target_deg, float max_dps, float &vel_deg)
 {
-    const float step = max_dps * kTickS;
     const float remain = target_deg - angle_deg;
-    if (remain > step) {
-        angle_deg += step;
-        return false;
+
+    /* 期望速度：远端恒速巡航，近端比例减速（负误差自然给出反向速度） */
+    float v_des = remain * kApproachGain;
+    if (v_des > max_dps) {
+        v_des = max_dps;
+    } else if (v_des < -max_dps) {
+        v_des = -max_dps;
     }
-    if (remain < -step) {
-        angle_deg -= step;
-        return false;
+
+    /* 实际速度以有限加速度逼近期望速度：起步/急停都是斜坡 */
+    const float dv_max = kApproachAccel * kTickS;
+    const float dv = v_des - vel_deg;
+    if (dv > dv_max) {
+        vel_deg += dv_max;
+    } else if (dv < -dv_max) {
+        vel_deg -= dv_max;
+    } else {
+        vel_deg = v_des;
     }
-    angle_deg = target_deg;
-    return true;
+
+    angle_deg += vel_deg * kTickS;
+
+    /* 到位：误差收进门槛即吸附终点（比例逼近的积分尾巴到此截止） */
+    if (absf(target_deg - angle_deg) < kArriveEpsDeg) {
+        angle_deg = target_deg;
+        vel_deg = 0.0f;
+        return true;
+    }
+    return false;
 }
 
 /* 第 1 段位移（from→mid）与第 2 段位移（mid→to）方向相反？
@@ -430,6 +474,9 @@ void reset_state(void)
     s_tgt_gripper = GRIPPER_UNDEF;
     s_nb_pending = false;
     s_nb_mask = 0U;
+    s_vel_base = 0.0f;
+    s_vel_link1 = 0.0f;
+    s_vel_link2 = 0.0f;
 }
 
 }   // namespace
@@ -521,12 +568,27 @@ void arm_action_update(uint32_t now_ms)
     const bool link1_live = (s_power & ARM_JOINT_SHOULDER) != 0U;
     const bool link2_live = (s_power & ARM_JOINT_ELBOW) != 0U;
 
-    const bool base_done =
-        !base_live || approach(pose.base_z_deg, s_tgt_base, ARM_MANUAL_BASE_MAX_DPS);
-    const bool link1_done =
-        !link1_live || approach(pose.link1_deg, s_tgt_link1, ARM_MANUAL_SHOULDER_MAX_DPS);
-    const bool link2_done =
-        !link2_live || approach(pose.link2_deg, s_tgt_link2, ARM_MANUAL_ELBOW_MAX_DPS);
+    bool base_done = true;
+    bool link1_done = true;
+    bool link2_done = true;
+    if (base_live) {
+        base_done = approach(pose.base_z_deg, s_tgt_base,
+                             ARM_MANUAL_BASE_MAX_DPS, s_vel_base);
+    } else {
+        s_vel_base = 0.0f;      // 本帧不通电的关节不做平滑，速度状态清零
+    }
+    if (link1_live) {
+        link1_done = approach(pose.link1_deg, s_tgt_link1,
+                              ARM_MANUAL_SHOULDER_MAX_DPS, s_vel_link1);
+    } else {
+        s_vel_link1 = 0.0f;
+    }
+    if (link2_live) {
+        link2_done = approach(pose.link2_deg, s_tgt_link2,
+                              ARM_MANUAL_ELBOW_MAX_DPS, s_vel_link2);
+    } else {
+        s_vel_link2 = 0.0f;
+    }
 
     /* 只写本帧通电的关节；夹爪不走这条路（由 gripper 模块负责） */
     if (!arm_set_pose_masked(&pose, s_power & ~ARM_JOINT_GRIPPER)) {
