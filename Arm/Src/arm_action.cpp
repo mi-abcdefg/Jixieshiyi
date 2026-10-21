@@ -5,9 +5,9 @@
 // 角度全在 arm_keyframe.cpp 的表里。
 //
 // 本文件负责三件事（调用方都不用操心）：
-//   1. 逐帧逼近：三关节做斜坡平滑逼近（期望速度=误差×增益、实际速度限
-//      加速度——远端恒速巡航、近端比例减速，起步/急停都是渐变，恒速急停
-//      会让舵机抖动），到位后按帧切夹爪、停留 300ms；
+//   1. 逐帧逼近：底座恒角速度直插（实测无需平滑）；大臂/小臂做斜坡平滑
+//      逼近（期望速度=误差×增益、实际速度限加速度——远端恒速巡航、近端
+//      比例减速，起步/急停都是渐变），到位后按帧切夹爪、停留 50ms；
 //   2. 逐帧给力：每帧只给 power 掩码里的关节通电（卸力恢复的"脱离"动作
 //      靠它先让大臂（肩）单独有力，其余关节仍软着）；
 //   3. 不走回头路：第 1 段位移与第 2 段方向相反时，把第 1 段退化为"保持"，
@@ -25,15 +25,21 @@
 namespace {
 
 /* ------------------------------ 引擎参数 ------------------------------ */
-constexpr uint32_t kHoldMs = 220U;     // 关键帧到位后的停留时间（原 300，提速）
+constexpr uint32_t kHoldMs = 50U;      // 关键帧到位后的停留时间（实测从 220 再压）
 constexpr float kTickS = 0.020f;       // 推进周期 [s]，须与 ArmTask 周期一致
 
 /* 动作巡航角速度 [°/s]：**动作引擎专用**，与点动快速档（90/60/60，摇杆用）
- * 脱钩——2026/10/21 实测平滑后偏慢，整体提速约 1.4×；点动手感不受影响。
- * 平滑逼近的速度上限就是这个值（远端恒速巡航），嫌慢/嫌快只动这里。 */
-constexpr float kCruiseBaseDps = 125.0f;      // 底座（原借用点动 90）
-constexpr float kCruiseShoulderDps = 85.0f;   // 大臂（原借用点动 60）
-constexpr float kCruiseElbowDps = 85.0f;      // 小臂（原借用点动 60）
+ * 脱钩——调点动手感不影响动作速度。平滑逼近的速度上限就是这个值。 */
+constexpr float kCruiseBaseDps = 125.0f;      // 底座：不做平滑，恒角速度步进
+constexpr float kCruiseShoulderDps = 85.0f;   // 大臂：平滑逼近巡航值
+constexpr float kCruiseElbowDps = 85.0f;      // 小臂：平滑逼近巡航值
+
+/* 平滑参数（按关节）：
+ *   大臂 250°/s²（2026/10/21 实测从 450 调低 = 平滑度再提高，斜坡更缓）；
+ *   小臂 450°/s² 保持；
+ *   底座不做平滑（实测无需——MG995 带载本身就没有速度阶跃的抖动问题）。 */
+constexpr float kShoulderAccel = 250.0f;   // 大臂速度斜坡加速度 [°/s²]
+constexpr float kElbowAccel = 450.0f;      // 小臂速度斜坡加速度 [°/s²]
 constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角阈值
 
 /* ---------------------- 篮内区判定（暂定值，待实车复核） ----------------------
@@ -319,17 +325,38 @@ bool begin_frame(KeyframeId id)
  *   实际速度以有限加速度逼近期望速度。
  * 原实现是恒角速度步进、到位瞬间吸附终点——速度阶跃直接砸在舵机上，
  * 急停抖动明显。斜坡化之后起步/到位都是渐变，HOLD 停留时长不变。
- * 参数取值：增益 5/s ⇒ 距目标 v巡航/5 时开始减速；加速度 450°/s² ⇒
- * 肩/肘约 0.19s、底座约 0.28s 从静止到巡航。 */
+ * 参数取值（2026/10/21 实测调整）：增益 5/s ⇒ 距目标 v巡航/5 时开始减速；
+ * 加速度按关节分——大臂 250°/s²（平滑度优先）、小臂 450°/s²；底座不做
+ * 平滑，恒角速度 125°/s 直插（MG995 带载实测无速度阶跃抖动问题）。 */
 constexpr float kApproachGain = 5.0f;      // 位置误差 → 期望速度 [1/s]
-constexpr float kApproachAccel = 450.0f;   // 速度斜坡的加速度上限 [°/s²]
 constexpr float kArriveEpsDeg = 0.4f;      // 到位吸附门槛 [°]
 
 /**
- * @brief 单关节朝目标平滑逼近一个周期
+ * @brief 单关节恒角速度步进一个周期（底座用：不做平滑）
+ * @return true = 已到位（本周期精确落在目标上）
+ */
+bool approach_const(float &angle_deg, float target_deg, float max_dps)
+{
+    const float step = max_dps * kTickS;
+    const float remain = target_deg - angle_deg;
+    if (remain > step) {
+        angle_deg += step;
+        return false;
+    }
+    if (remain < -step) {
+        angle_deg -= step;
+        return false;
+    }
+    angle_deg = target_deg;
+    return true;
+}
+
+/**
+ * @brief 单关节朝目标平滑逼近一个周期（大臂/小臂用）
  * @return true = 已到位（误差收进门槛，已吸附终点，速度清零）
  */
-bool approach(float &angle_deg, float target_deg, float max_dps, float &vel_deg)
+bool approach(float &angle_deg, float target_deg, float max_dps,
+              float accel, float &vel_deg)
 {
     const float remain = target_deg - angle_deg;
 
@@ -342,7 +369,7 @@ bool approach(float &angle_deg, float target_deg, float max_dps, float &vel_deg)
     }
 
     /* 实际速度以有限加速度逼近期望速度：起步/急停都是斜坡 */
-    const float dv_max = kApproachAccel * kTickS;
+    const float dv_max = accel * kTickS;
     const float dv = v_des - vel_deg;
     if (dv > dv_max) {
         vel_deg += dv_max;
@@ -579,20 +606,19 @@ void arm_action_update(uint32_t now_ms)
     bool link1_done = true;
     bool link2_done = true;
     if (base_live) {
-        base_done = approach(pose.base_z_deg, s_tgt_base,
-                             kCruiseBaseDps, s_vel_base);
+        base_done = approach_const(pose.base_z_deg, s_tgt_base, kCruiseBaseDps);
     } else {
-        s_vel_base = 0.0f;      // 本帧不通电的关节不做平滑，速度状态清零
+        s_vel_base = 0.0f;      // 本帧不通电的关节不做推进，速度状态清零
     }
     if (link1_live) {
         link1_done = approach(pose.link1_deg, s_tgt_link1,
-                              kCruiseShoulderDps, s_vel_link1);
+                              kCruiseShoulderDps, kShoulderAccel, s_vel_link1);
     } else {
         s_vel_link1 = 0.0f;
     }
     if (link2_live) {
         link2_done = approach(pose.link2_deg, s_tgt_link2,
-                              kCruiseElbowDps, s_vel_link2);
+                              kCruiseElbowDps, kElbowAccel, s_vel_link2);
     } else {
         s_vel_link2 = 0.0f;
     }
