@@ -55,20 +55,18 @@ extern "C" {
 #define MECANUM_FRICTION_COMP_MPS         (0.6f * MECANUM_MAX_SPEED)
 
 // ---------------- 四轮前馈微调（逐轮独立参数，按车分套） ----------------
-// 实测起步灵敏度 A 车 FL > FR > BL > BR（FL 总是最先转）。四个轮子的前馈
-// 修正是**独立参数**：实车上给高了调低、给低了调高，逐轮各自收敛——
-// 下面的初值只是按灵敏度差给的等差数列（步距 0.02 m/s ≈ 1% 占空比），
-// 调参后不必（一般也不会）保持等差。
+// 四个轮子的前馈修正量是**独立参数**：实车上给高了调低、给低了调高，
+// 逐轮各自收敛，数值之间没有任何约束关系。
 // 约定：这组微调的**中位数 ≈ 0**，全局起步补偿（上方 COMP）仍是标定基准——
 // 若四轮整体都提前/滞后，先改 COMP，再回来逐轮微调。
 //
 // 参数按车分套（A/B 车底盘阻力特性不同），切换方式同 MOTOR_INVERT_xx：
 // 改 #if 的 0/1，两套配置都以注释/代码保留在文件里。
-#if 1    /* ===== A 车配置（2026/10/21 初值，待实车逐轮标定） ===== */
-#define MECANUM_COMP_TRIM_FL   (-0.03f)   // FL：最灵敏，初值减得最多
-#define MECANUM_COMP_TRIM_FR   (-0.01f)
-#define MECANUM_COMP_TRIM_BL   (+0.01f)
-#define MECANUM_COMP_TRIM_BR   (+0.03f)   // BR：最迟钝，初值加得最多
+#if 1    /* ===== A 车配置（2026/10/21 实测修正） ===== */
+#define MECANUM_COMP_TRIM_FL   (-0.04f)   // FL：实测仍偏灵敏，再降一档
+#define MECANUM_COMP_TRIM_FR   (0.0f)     // 回正常值：此前不动不是摩擦差
+#define MECANUM_COMP_TRIM_BL   (0.0f)     // 回正常值：后轮此前不转是使能
+#define MECANUM_COMP_TRIM_BR   (0.0f)     // 线路断了（实测确认），非摩擦差
 #else    /* ===== B 车配置（占位：B 车实测后逐轮填） ===== */
 #define MECANUM_COMP_TRIM_FL   (0.0f)
 #define MECANUM_COMP_TRIM_FR   (0.0f)
