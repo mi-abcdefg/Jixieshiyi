@@ -62,11 +62,11 @@ extern "C" {
 //
 // 参数按车分套（A/B 车底盘阻力特性不同），切换方式同 MOTOR_INVERT_xx：
 // 改 #if 的 0/1，两套配置都以注释/代码保留在文件里。
-#if 1    /* ===== A 车配置（2026/10/21 实测修正） ===== */
-#define MECANUM_COMP_TRIM_FL   (-0.04f)   // FL：实测仍偏灵敏，再降一档
-#define MECANUM_COMP_TRIM_FR   (0.0f)     // 回正常值：此前不动不是摩擦差
-#define MECANUM_COMP_TRIM_BL   (0.0f)     // 回正常值：后轮此前不转是使能
-#define MECANUM_COMP_TRIM_BR   (0.0f)     // 线路断了（实测确认），非摩擦差
+#if 1    /* ===== A 车配置（2026/10/21 全部回正常值） ===== */
+#define MECANUM_COMP_TRIM_FL   (0.0f)     // 2026/10/21 实测后回退：与其他轮一致
+#define MECANUM_COMP_TRIM_FR   (0.0f)
+#define MECANUM_COMP_TRIM_BL   (0.0f)
+#define MECANUM_COMP_TRIM_BR   (0.0f)
 #else    /* ===== B 车配置（占位：B 车实测后逐轮填） ===== */
 #define MECANUM_COMP_TRIM_FL   (0.0f)
 #define MECANUM_COMP_TRIM_FR   (0.0f)
