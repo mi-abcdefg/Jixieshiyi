@@ -37,19 +37,19 @@
 #define MOTOR_DRV_DISABLE_LEVEL   GPIO_PIN_RESET
 
 //电机接线方向修正
-/*
+
 //A车后右轮子需翻转
 #define MOTOR_INVERT_FL           0
 #define MOTOR_INVERT_FR           0
 #define MOTOR_INVERT_BL           0
 #define MOTOR_INVERT_BR           1
-*/
+/*
 //B车后右轮子、后左轮子需翻转
 #define MOTOR_INVERT_FL           0
 #define MOTOR_INVERT_FR           0
 #define MOTOR_INVERT_BL           1
 #define MOTOR_INVERT_BR           1
-
+*/
 #ifdef __cplusplus
 class Motor {
 public:

@@ -5,7 +5,8 @@
 // arm_keyframe.cpp 的关键帧表，动作引擎只认 KeyframeId，不认角度。
 //
 // 用户角约定（0~180，与舵机安装方向解耦）：
-//   底座 base      user 0 = 工作侧端（cmd 270）  user 180 = 篮子侧端（cmd 90）
+//   底座 base      user 0 = 工作侧端  user 180 = 篮子侧端（两车的物理含义
+//                  相同；命令角映射按车镜像，见下方 base_*_to_cmd 的 #if）
 //   肩   shoulder  user 0 = 下推极限（收拢）     user 180 = 上推极限（竖直）
 //   肘   elbow     user 0 = 下推极限（cmd −120）user 180 = 上推极限（cmd +60）
 //   爪   gripper   不用角度，以"开/合/不变"参与关键帧（见 gripper.h）
@@ -32,19 +33,38 @@
 constexpr float kKeep = 255.0f;
 
 /* ------------------------- 用户角 → 命令角 -------------------------
- * 底座方向标定（2026/10/21 实车复核后**已镜像一次**）：原式 cmd = 90 + user
- * 使 user 0 落在篮子上，与"user 0 = 工作侧端"的约定相反；实测确认后翻转为
- * cmd = 270 − user，映射关系为
- *   user 0   → cmd 270 → 2500µs → 工作侧端
- *   user 90  → cmd 180 → 1500µs → 初始方位（臂朝车头）
- *   user 180 → cmd  90 →  500µs → 篮子侧端
- * 以后再遇到镜像，同样只翻这两行（`base_user_to_cmd / base_cmd_to_user`），
- * 不要改关键帧数值；篮内判定阈值以用户角表达（见 arm_action.cpp），
- * 约定本身不变（篮子侧 = 用户角大的一端），因此不需要跟着动。 */
+ * 底座方向**按车分套**（2026/10/21）：A 车的基座舵机与 B 车安装方向镜像，
+ * 动作关键帧以用户角表达物理方位，因此 A 车的动作换算需镜像——摇杆点动
+ * 直接工作在命令角域，两车手感一致，**不参与镜像**。
+ *   B 车（原标定版）：cmd = 270 − user，即 user 0 → cmd 270（工作侧端）
+ *   A 车（镜像版）  ：cmd =  90 + user，即 user 180 → cmd 270（篮子侧端）
+ * 两车共用同一套关键帧数值和篮内阈值（"篮子侧 = user 180"的约定在两车
+ * 上都成立），只翻这里。切换方式同 MOTOR_INVERT_xx：改 #if 的 0/1。 */
+#if 1    /* ===== A 车配置（动作镜像） ===== */
+constexpr float base_user_to_cmd(float user_deg)
+{
+    return 90.0f + user_deg;
+}
+#else    /* ===== B 车配置 ===== */
 constexpr float base_user_to_cmd(float user_deg)
 {
     return 270.0f - user_deg;
 }
+#endif
+
+/* 命令角 → 用户角：必须与 base_user_to_cmd 严格互逆（篮内判定用读回
+ * 反算），翻转正变换时这两行必须同时翻。 */
+#if 1    /* ===== A 车配置 ===== */
+constexpr float base_cmd_to_user(float cmd_deg)
+{
+    return cmd_deg - 90.0f;
+}
+#else    /* ===== B 车配置 ===== */
+constexpr float base_cmd_to_user(float cmd_deg)
+{
+    return 270.0f - cmd_deg;
+}
+#endif
 
 /* 肩方向标定（2026/10/21 实车复核后**已镜像一次**）：原式 cmd = 180 − user
  * 使用户角上下颠倒（动作按"肩抬起"给的用户角实际落到收拢端）。翻转为
@@ -68,12 +88,8 @@ constexpr float link2_user_to_cmd(float user_deg)
 
 /* ------------------------- 命令角 → 用户角 -------------------------
  * 位形判定（篮内/篮外）用读回的命令角反算用户角。
- * 必须与上面的正变换严格互为逆：改一个必须同时改另一个。 */
-constexpr float base_cmd_to_user(float cmd_deg)
-{
-    return 270.0f - cmd_deg;
-}
-
+ * 底座的反变换已并入上方按车分套的块里（与正变换同处，保证同步翻转）；
+ * 肩/肘的反变换如下，必须与正变换严格互逆：改一个必须同时改另一个。 */
 constexpr float link1_cmd_to_user(float cmd_deg)
 {
     return cmd_deg;
