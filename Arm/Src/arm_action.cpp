@@ -52,6 +52,10 @@ constexpr float kMoveEpsDeg = 0.001f;  // 判定"这一帧是否真的动"的角
 constexpr float kInBasketBaseUserMin = 160.0f;
 constexpr float kInBasketShoulderUserMax = 100.0f;
 
+/* × 键"篮外低姿起步"变体的大臂门槛（用户角；肩换算镜像后 = 命令角）：
+ * 判篮外且大臂低于此角 → 先到 kOutsideLift 过渡点再走原路线。 */
+constexpr float kOutsideLiftShoulderUserDeg = 50.0f;
+
 /* ------------------- 动作路径（关键帧编号的序列） ------------------- */
 
 /* 回收缩：篮内经篮上高点、篮外经外侧高点，都收到同一个收缩位 */
@@ -72,6 +76,13 @@ constexpr KeyframeId kTransitFromBasket[] = {
 };
 constexpr KeyframeId kTransitFromOutside[] = {
     KeyframeId::kOuterHigh, KeyframeId::kBasketHigh, KeyframeId::kBasketIn
+};
+/* 篮外变体（2026/10/21）：判篮外且**大臂用户角 < 50°**（臂压得很低）时，
+ * 先抬到篮外低姿起步过渡点再走原路线——低姿直接伸向篮上高点会扫到
+ * 周围障碍。只作用于 × 键的篮外方向（kTransitFromOutside 的前插帧）。 */
+constexpr KeyframeId kTransitFromOutsideLow[] = {
+    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh,
+    KeyframeId::kBasketHigh, KeyframeId::kBasketIn
 };
 
 /* 脱离（卸力恢复）：先只撑直大臂（肩），再让大臂保持、底座单独回中位。
@@ -130,11 +141,14 @@ constexpr Path make_path(const KeyframeId (&frames)[N])
 /** 一个动作的路径定义
  *  @note fixed.frames == nullptr 表示双路径动作，用 inside/outside 二选一；
  *        inside = 启动时判定为"篮内"时走的路径，outside = 判定为"篮外"时走的路径。
- *        两条路径长度可以不等（引擎按选定那条的 count 推进）。 */
+ *        两条路径长度可以不等（引擎按选定那条的 count 推进）。
+ *        outside_low 非空 = 篮外方向还有一份"低姿起步"变体：篮外且大臂
+ *        低于 kOutsideLiftShoulderUserDeg 时改走它（空 = 没有变体，用 outside）。 */
 struct ActionSeq {
     Path fixed;
     Path inside;
     Path outside;
+    Path outside_low;
 };
 
 constexpr Path kNoPath = { nullptr, 0U };
@@ -144,10 +158,11 @@ const ActionSeq kSequences[] = {
     { kNoPath,
       make_path(kRetractFromBasket),
       make_path(kRetractFromOutside) },
-    /* kTransit 篮内外转移 */
+    /* kTransit 篮内外转移（篮外低姿起步变体见 kTransitFromOutsideLow 注释） */
     { kNoPath,
       make_path(kTransitFromBasket),
-      make_path(kTransitFromOutside) },
+      make_path(kTransitFromOutside),
+      make_path(kTransitFromOutsideLow) },
     /* kEscape  脱离 */
     { make_path(kEscapePath), kNoPath, kNoPath },
     /* —— R1 动作菜单的取放动作（先经过渡高点，再到取放点）—— */
@@ -234,6 +249,17 @@ bool in_basket_zone(void)
     const float shoulder_user = link1_cmd_to_user(pose.link1_deg);
     return (base_user >= kInBasketBaseUserMin) &&
            (shoulder_user <= kInBasketShoulderUserMax);
+}
+
+/* 大臂用户角是否低于"篮外低姿起步"门槛（× 键变体的选择条件）。
+ * 读不回来按"不低"处理：走原路线，安全侧。 */
+bool shoulder_below_lift_threshold(void)
+{
+    ArmPose_t pose;
+    if (!arm_get_pose(&pose)) {
+        return false;
+    }
+    return link1_cmd_to_user(pose.link1_deg) < kOutsideLiftShoulderUserDeg;
 }
 
 /* 让舵机的给力状态与目标掩码一致（只动需要变的那几路，幂等） */
@@ -395,11 +421,20 @@ bool arm_action_start(ActionId id, uint32_t now_ms)
 
     const ActionSeq &seq = kSequences[static_cast<uint8_t>(id)];
 
-    /* 双路径动作：启动这一刻按当前位形二选一，之后不再切换
-     * （运行中反复判定会随臂动而变，导致中途跳路径） */
-    const Path *path = (seq.fixed.frames != nullptr)
-                       ? &seq.fixed
-                       : (in_basket_zone() ? &seq.inside : &seq.outside);
+    /* 路径选择：启动这一刻按当前位形定，之后不再切换
+     * （运行中反复判定会随臂动而变，导致中途跳路径）。
+     * 篮外方向若带"低姿起步"变体且大臂低于门槛，改走变体（先抬臂）。 */
+    const Path *path;
+    if (seq.fixed.frames != nullptr) {
+        path = &seq.fixed;
+    } else if (in_basket_zone()) {
+        path = &seq.inside;
+    } else if (seq.outside_low.frames != nullptr &&
+               shoulder_below_lift_threshold()) {
+        path = &seq.outside_low;
+    } else {
+        path = &seq.outside;
+    }
 
     if (path->frames == nullptr || path->count == 0U) {
         return false;

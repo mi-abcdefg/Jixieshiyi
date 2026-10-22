@@ -64,6 +64,8 @@ static const ArmKeyframe kKeyframes[] = {
     { 90.0f,         75.0f,          20.0f,          GRIPPER_OPEN  },
     /* kFrontLow             前方低点（夹爪保持当前开合不动） */
     { 0.0f,          45.0f,          60.0f,          GRIPPER_UNDEF },
+    /* kOutsideLift          篮外低姿起步过渡点（× 键：大臂 <50° 时先到此） */
+    { 50.0f,         40.0f,          50.0f,          GRIPPER_UNDEF },
 };
 
 static_assert(sizeof(kKeyframes) / sizeof(kKeyframes[0]) ==

@@ -133,6 +133,8 @@ enum class KeyframeId : uint8_t {
     kEnergyUnitPlatLeft,  // 能量单元_高台左 (30,75,20,开)
     kEnergyUnitPlatRight, // 能量单元_高台右 (90,75,20,开)
     kFrontLow,            // 前方低点 (0,45,60,夹爪不变)
+    kOutsideLift,         // 篮外低姿起步过渡点 (50,40,50,夹爪不变)：
+                          //   按 × 判篮外且大臂 <50° 时先到此再走原路线
     kCount
 };
 
