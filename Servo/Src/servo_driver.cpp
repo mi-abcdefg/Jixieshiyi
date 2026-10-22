@@ -53,6 +53,16 @@ typedef struct
  */
 static const ServoConfig_t servo_config[SERVO_COUNT] =
 {
+    /* 大臂（肩）舵机安装方向按车分套（2026/10/21 A 车实测：装反）：两车互为
+     * 镜像。reversed 翻转的是**整条通道**——摇杆点动 / 动作关键帧 / 末端
+     * 点动一起镜像物理方向；肩的用户角约定、篮内判定阈值、末端几何换算
+     * 都按"方向正确"标定，翻转后自然对齐，上层无需任何改动。 */
+#if 1    /* ===== A 车配置 ===== */
+#define SHOULDER_REVERSED     false
+#else    /* ===== B 车配置 ===== */
+#define SHOULDER_REVERSED     true
+#endif
+
     /* [0] 夹爪（SERVO_GRIPPER，PB9/TIM4_CH4，SG90）
      * 限位为舵机全行程 [0°,180°]：曾用 [15°,165°] 边距，闭合位够不到。
      * 开/合两档命令角见 gripper.h（60/120，占位待标定），90° 为中位脉宽。 */
@@ -67,8 +77,8 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
     },
 
     /* [1] 肩关节：第一段连杆，臂长 11cm（SERVO_LINK_1，PB7/TIM4_CH2，SG90）。
-     * 实测安装方向相反，reversed 翻转；两端各留 15° 不达极限（域 [15°,165°]，
-     * 90° 仍为中位脉宽 1500µs）。 */
+     * 安装方向按车分套（见上方 SHOULDER_REVERSED）：A 车 false / B 车 true。
+     * 两端各留 15° 不达极限（域 [15°,165°]，90° 仍为中位脉宽 1500µs）。 */
     {
         TIM_CHANNEL_2,
         500,
@@ -76,7 +86,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         15.0f,
         165.0f,
         90.0f,
-        true
+        SHOULDER_REVERSED
     },
 
     /* [2] 肘关节：第二段连杆，臂长 8.5cm（SERVO_LINK_2，PB8/TIM4_CH3，SG90）。
