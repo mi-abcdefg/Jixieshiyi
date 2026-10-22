@@ -30,7 +30,7 @@
  * φ = atan(2.3 / 10.6) ≈ 12.25°。φ 的命令角换算在 arm_endpoint
  * （第三个舵机的固定角度差），本模块只管等效长度与等效角度。 */
 #define ARM_IK_LINK1_M      0.1085f  // 等效第一段连杆 [m]（= √(10.6² + 2.3²) cm）
-#define ARM_IK_LINK2_M      0.09f    // 第二段连杆长度 [m]（肘→腕）
+#define ARM_IK_LINK2_M      0.085f    // 第二段连杆长度 [m]（肘→腕）
 
 /* 可达半径的边界内缩量：留出行程余量，避免贴着奇异位形解算 */
 #define ARM_IK_REACH_MARGIN_M    0.004f
