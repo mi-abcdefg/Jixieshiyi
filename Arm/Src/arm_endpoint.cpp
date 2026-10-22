@@ -99,7 +99,7 @@ bool arm_endpoint_jog(uint32_t now_ms, float dz_dir, float dr_dir)
     float r_m = 0.0f;
     float z_m = 0.0f;
     arm_ik_forward(pose.link1_deg - ARM_ENDPOINT_SHOULDER_OFFSET_DEG,
-                   pose.link2_deg, &r_m, &z_m);
+                   pose.link2_deg - ARM_ENDPOINT_ELBOW_OFFSET_DEG, &r_m, &z_m);
 
     /* ---------------- 给末端一个小位移，夹回工作区（唯一夹取点） ---------------- */
     r_m += dr_dir * ARM_ENDPOINT_R_MPS * dt_s;
@@ -117,10 +117,12 @@ bool arm_endpoint_jog(uint32_t now_ms, float dz_dir, float dr_dir)
 
     const float up_link1 = arm_clamp_angle(
         SERVO_LINK_1, ik.link1_up_deg + ARM_ENDPOINT_SHOULDER_OFFSET_DEG);
-    const float up_link2 = arm_clamp_angle(SERVO_LINK_2, ik.link2_up_deg);
+    const float up_link2 = arm_clamp_angle(
+        SERVO_LINK_2, ik.link2_up_deg + ARM_ENDPOINT_ELBOW_OFFSET_DEG);
     const float dn_link1 = arm_clamp_angle(
         SERVO_LINK_1, ik.link1_down_deg + ARM_ENDPOINT_SHOULDER_OFFSET_DEG);
-    const float dn_link2 = arm_clamp_angle(SERVO_LINK_2, ik.link2_down_deg);
+    const float dn_link2 = arm_clamp_angle(
+        SERVO_LINK_2, ik.link2_down_deg + ARM_ENDPOINT_ELBOW_OFFSET_DEG);
 
     const float up_dist = fabsf(up_link1 - pose.link1_deg) +
                           fabsf(up_link2 - pose.link2_deg);
