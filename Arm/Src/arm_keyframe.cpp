@@ -37,9 +37,9 @@ static const ArmKeyframe kKeyframes[] = {
     /* kBasketHigh  篮上高点 */
     { 180.0f,        90.0f,          90.0f,          GRIPPER_UNDEF },
     /* kOuterHigh   外侧高点 */
-    { 90.0f,         100.0f,         80.0f,          GRIPPER_UNDEF },
+    { 90.0f,         80.0f,         100.0f,          GRIPPER_UNDEF },
     /* kRetract     收缩位 */
-    { 0.0f,          165.0f,         0.0f,           GRIPPER_UNDEF },
+    { 0.0f,          172.0f,         0.0f,           GRIPPER_UNDEF },
     /* kBasketIn    篮内点 */
     { 175.0f,        70.0f,          50.0f,          GRIPPER_OPEN  },
     /* kPickupLow   出篮终点（到位合爪） */
