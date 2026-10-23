@@ -41,7 +41,7 @@ static const ArmKeyframe kKeyframes[] = {
     /* kRetract     收缩位 */
     { 0.0f,          172.0f,         0.0f,           GRIPPER_UNDEF },
     /* kBasketIn    篮内点 */
-    { 175.0f,        70.0f,          58.0f,          GRIPPER_OPEN  },
+    { 175.0f,        70.0f,          65.0f,          GRIPPER_OPEN  },
     /* kPickupLow   出篮终点（夹爪保持当前开合） */
     { 90.0f,         75.0f,          40.0f,          GRIPPER_UNDEF },
     /* kEscapeShoulder 脱离1：只撑直大臂（其余关节仍卸力） */
