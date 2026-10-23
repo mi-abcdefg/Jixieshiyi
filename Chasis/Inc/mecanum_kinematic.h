@@ -56,7 +56,7 @@ extern "C" {
 // ---------------- 四轮前馈微调（逐轮独立参数，按车分套） ----------------
 // 参数按车分套（A/B 车底盘阻力特性不同），切换方式同 MOTOR_INVERT_xx：
 // 改 #if 的 0/1，两套配置都以注释/代码保留在文件里。
-#if 1    /* ===== A 车配置（2026/10/21 全部回正常值） ===== */
+#if 0    /* ===== A 车配置（2026/10/21 全部回正常值） ===== */
 #define MECANUM_COMP_TRIM_FL   (0.0f)
 #define MECANUM_COMP_TRIM_FR   (0.0f)
 #define MECANUM_COMP_TRIM_BL   (0.0f)

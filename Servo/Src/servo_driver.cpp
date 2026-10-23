@@ -57,7 +57,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
      * 镜像。reversed 翻转的是**整条通道**——摇杆点动 / 动作关键帧 / 末端
      * 点动一起镜像物理方向；肩的用户角约定、篮内判定阈值、末端几何换算
      * 都按"方向正确"标定，翻转后自然对齐，上层无需任何改动。 */
-#if 1    /* ===== A 车配置 ===== */
+#if 0    /* ===== A 车配置 ===== */
 #define SHOULDER_REVERSED     false
 #else    /* ===== B 车配置 ===== */
 #define SHOULDER_REVERSED     true
