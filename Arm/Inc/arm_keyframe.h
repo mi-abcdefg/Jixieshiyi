@@ -40,7 +40,7 @@ constexpr float kKeep = 255.0f;
  *   A 车（镜像版）  ：cmd =  90 + user，即 user 180 → cmd 270（篮子侧端）
  * 两车共用同一套关键帧数值和篮内阈值（"篮子侧 = user 180"的约定在两车
  * 上都成立），只翻这里。切换方式同 MOTOR_INVERT_xx：改 #if 的 0/1。 */
-#if 1    /* ===== A 车配置（动作镜像） ===== */
+#if 0    /* ===== A 车配置（动作镜像） ===== */
 constexpr float base_user_to_cmd(float user_deg)
 {
     return 90.0f + user_deg;
@@ -54,7 +54,7 @@ constexpr float base_user_to_cmd(float user_deg)
 
 /* 命令角 → 用户角：必须与 base_user_to_cmd 严格互逆（篮内判定用读回
  * 反算），翻转正变换时这两行必须同时翻。 */
-#if 1    /* ===== A 车配置 ===== */
+#if 0    /* ===== A 车配置 ===== */
 constexpr float base_cmd_to_user(float cmd_deg)
 {
     return cmd_deg - 90.0f;
