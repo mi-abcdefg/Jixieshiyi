@@ -91,89 +91,93 @@ constexpr KeyframeId kEscapePath[] = {
     KeyframeId::kEscapeShoulder, KeyframeId::kEscapeYaw
 };
 
-/* ------- R1 动作菜单的取放动作（2026/10/21 增） -------
- * 六个动作同构：先按篮内/篮外判定经过渡高点（篮内→篮上高点，篮外→外侧
- * 高点），再到各自的取放点。终点角度全在 arm_keyframe.cpp 的表里。 */
+/* ------- R1 动作菜单的取放动作（2026/10/21 增，2026/10/23 调整路线） -------
+ *   篮内起步：仍需**出篮**——篮上高点 → 外侧高点 → 终点；
+ *   篮外起步：防扫前缀（低姿起步点 / 防扫收拢帧，按大臂高度二选一）之后
+ *             **直奔终点**，不再绕外侧高点（防扫前缀已负责安全抬臂）。
+ * 终点角度全在 arm_keyframe.cpp 的表里。 */
 constexpr KeyframeId kFrontHighIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kFrontHigh };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kFrontHigh };
 constexpr KeyframeId kFrontHighOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kFrontHigh };
+    KeyframeId::kFrontHigh };
 
 constexpr KeyframeId kSideRearIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kPickupSideRear };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kPickupSideRear };
 constexpr KeyframeId kSideRearOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kPickupSideRear };
+    KeyframeId::kPickupSideRear };
 
 constexpr KeyframeId kSideFrontIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kPickupSideFront };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kPickupSideFront };
 constexpr KeyframeId kSideFrontOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kPickupSideFront };
+    KeyframeId::kPickupSideFront };
 
 constexpr KeyframeId kCorePlatformIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kEnergyCorePlatform };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kEnergyCorePlatform };
 constexpr KeyframeId kCorePlatformOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kEnergyCorePlatform };
+    KeyframeId::kEnergyCorePlatform };
 
 constexpr KeyframeId kUnitPlatLeftIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kEnergyUnitPlatLeft };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatLeft };
 constexpr KeyframeId kUnitPlatLeftOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatLeft };
+    KeyframeId::kEnergyUnitPlatLeft };
 
 constexpr KeyframeId kUnitPlatRightIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kEnergyUnitPlatRight };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatRight };
 constexpr KeyframeId kUnitPlatRightOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatRight };
+    KeyframeId::kEnergyUnitPlatRight };
 
 constexpr KeyframeId kFrontLowIn[] = {
-    KeyframeId::kBasketHigh, KeyframeId::kFrontLow };
+    KeyframeId::kBasketHigh, KeyframeId::kOuterHigh, KeyframeId::kFrontLow };
 constexpr KeyframeId kFrontLowOut[] = {
-    KeyframeId::kOuterHigh, KeyframeId::kFrontLow };
+    KeyframeId::kFrontLow };
 
-/* ------- 篮外起步前缀变体（2026/10/21 增） -------
+/* ------- 篮外起步前缀变体（2026/10/21 增，2026/10/23 菜单动作不再绕外侧） -------
  * 篮外执行动作时（× **进篮**除外，它只有低姿起步变体），第一帧按大臂
- * 高度二选一，前缀帧之后接各自的基础篮外路线：
+ * 高度二选一：
  *   大臂 < 50°：前缀 = 篮外低姿起步过渡点 kOutsideLift；
  *   大臂 ≥ 50°：前缀 = 防扫收拢帧 kOutsideTuck（tuck 语义：大臂只抬不
- *               降、小臂只折不展、底座保持——防止动作扫到障碍）。 */
+ *               降、小臂只折不展、底座保持——防止动作扫到障碍）。
+ * 菜单动作的前缀之后**直奔终点**（防扫前缀已负责安全抬臂）；
+ * 回收缩（△）不是菜单动作，仍经外侧高点。 */
 constexpr KeyframeId kRetractLift[] = {
     KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kRetract };
 constexpr KeyframeId kRetractTuck[] = {
     KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kRetract };
 
 constexpr KeyframeId kFrontHighLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kFrontHigh };
+    KeyframeId::kOutsideLift, KeyframeId::kFrontHigh };
 constexpr KeyframeId kFrontHighTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kFrontHigh };
+    KeyframeId::kOutsideTuck, KeyframeId::kFrontHigh };
 
 constexpr KeyframeId kSideRearLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kPickupSideRear };
+    KeyframeId::kOutsideLift, KeyframeId::kPickupSideRear };
 constexpr KeyframeId kSideRearTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kPickupSideRear };
+    KeyframeId::kOutsideTuck, KeyframeId::kPickupSideRear };
 
 constexpr KeyframeId kSideFrontLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kPickupSideFront };
+    KeyframeId::kOutsideLift, KeyframeId::kPickupSideFront };
 constexpr KeyframeId kSideFrontTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kPickupSideFront };
+    KeyframeId::kOutsideTuck, KeyframeId::kPickupSideFront };
 
 constexpr KeyframeId kCorePlatformLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kEnergyCorePlatform };
+    KeyframeId::kOutsideLift, KeyframeId::kEnergyCorePlatform };
 constexpr KeyframeId kCorePlatformTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kEnergyCorePlatform };
+    KeyframeId::kOutsideTuck, KeyframeId::kEnergyCorePlatform };
 
 constexpr KeyframeId kUnitPlatLeftLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatLeft };
+    KeyframeId::kOutsideLift, KeyframeId::kEnergyUnitPlatLeft };
 constexpr KeyframeId kUnitPlatLeftTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatLeft };
+    KeyframeId::kOutsideTuck, KeyframeId::kEnergyUnitPlatLeft };
 
 constexpr KeyframeId kUnitPlatRightLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatRight };
+    KeyframeId::kOutsideLift, KeyframeId::kEnergyUnitPlatRight };
 constexpr KeyframeId kUnitPlatRightTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kEnergyUnitPlatRight };
+    KeyframeId::kOutsideTuck, KeyframeId::kEnergyUnitPlatRight };
 
 constexpr KeyframeId kFrontLowLift[] = {
-    KeyframeId::kOutsideLift, KeyframeId::kOuterHigh, KeyframeId::kFrontLow };
+    KeyframeId::kOutsideLift, KeyframeId::kFrontLow };
 constexpr KeyframeId kFrontLowTuck[] = {
-    KeyframeId::kOutsideTuck, KeyframeId::kOuterHigh, KeyframeId::kFrontLow };
+    KeyframeId::kOutsideTuck, KeyframeId::kFrontLow };
 
 /** 一条路径 */
 struct Path {
@@ -192,10 +196,10 @@ constexpr Path make_path(const KeyframeId (&frames)[N])
 /** 一个动作的路径定义
  *  @note fixed.frames == nullptr 表示区域路径动作：inside = 启动时判定
  *        "篮内"走的路径；篮外方向按大臂高度再分两份——
- *        outside_low = 大臂 < kOutsideLiftShoulderUserDeg 时的前缀路径
- *        （前缀帧之后接基础篮外路线，所以它的帧数一般比 outside 多一）；
- *        outside_tuck = 大臂 ≥ 门槛时的防扫收拢前缀路径（空 = 无该变体，
- *        回退 outside——× 进篮就靠留空豁免收拢前缀）。 */
+ *        outside_low = 大臂 < kOutsideLiftShoulderUserDeg 时的前缀路径、
+ *        outside_tuck = 大臂 ≥ 门槛时的防扫收拢前缀路径（二者都在前缀帧
+ *        之后直奔终点；outside_tuck 空 = 无该变体，回退 outside——× 进篮
+ *        就靠留空豁免收拢前缀）。 */
 struct ActionSeq {
     Path fixed;
     Path inside;
