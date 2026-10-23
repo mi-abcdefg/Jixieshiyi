@@ -40,7 +40,7 @@ static const ArmKeyframe kKeyframes[] = {
     /* kBasketHigh  篮上高点 */
     { 180.0f,        90.0f,          60.0f,          GRIPPER_UNDEF },
     /* kOuterHigh   外侧高点 */
-    { 90.0f,         80.0f,         50.0f,          GRIPPER_UNDEF },
+    { 90.0f,         80.0f,         40.0f,          GRIPPER_UNDEF },
     /* kRetract     收缩位 */
     { 0.0f,          172.0f,         0.0f,           GRIPPER_UNDEF },
     /* kBasketIn    篮内点 */
@@ -70,7 +70,7 @@ static const ArmKeyframe kKeyframes[] = {
     /* kFrontLow             前方低点（夹爪保持当前开合不动） */
     { 0.0f,          45.0f,          45.0f,          GRIPPER_UNDEF },
     /* kOutsideLift          篮外低姿起步过渡点（× 键：大臂 <50° 时先到此） */
-    { 50.0f,         40.0f,          20.0f,          GRIPPER_UNDEF },
+    { 50.0f,         50.0f,          16.0f,          GRIPPER_UNDEF },
     /* kOutsideTuck          篮外防扫收拢帧（tuck=true：底座保持、大臂只抬
      * 不降到 75、小臂只折不展到 5（= 补偿前 35）；表值写在下面两个字段） */
     { kKeep,         75.0f,          5.0f,           GRIPPER_UNDEF,
