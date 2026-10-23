@@ -43,7 +43,7 @@ static const ArmKeyframe kKeyframes[] = {
     /* kBasketIn    篮内点 */
     { 175.0f,        70.0f,          50.0f,          GRIPPER_OPEN  },
     /* kPickupLow   出篮终点（到位合爪） */
-    { 90.0f,         75.0f,          40.0f,          GRIPPER_CLOSE },
+    { 90.0f,         75.0f,          40.0f,          GRIPPER_UNDEF },
     /* kEscapeShoulder 脱离1：只撑直大臂（其余关节仍卸力） */
     { kKeep,         90.0f,          kKeep,          GRIPPER_UNDEF,
       ARM_JOINT_SHOULDER },
@@ -52,18 +52,18 @@ static const ArmKeyframe kKeyframes[] = {
       ARM_JOINT_SHOULDER | ARM_JOINT_BASE_Z },
     /* —— 动作菜单的取放点（R1 菜单，2026/10/21 增；角度为操作手给的占位值，
      *    实车微调只改这里的数字）—— */
-    /* kEnergyCoreShelf      能量核心_物资架 */
-    { 60.0f,         70.0f,          160.0f,         GRIPPER_OPEN  },
+    /* kFrontHigh      前方高点 */
+    { 0.0f,         70.0f,          170.0f,         GRIPPER_OPEN  },
     /* kEnergyUnitShelfLeft  能量单元_物资架下左 */
-    { 60.0f,         60.0f,          45.0f,          GRIPPER_OPEN  },
+    { 120.0f,         90.0f,          70.0f,          GRIPPER_OPEN  },
     /* kEnergyCorePlatform   能量核心_高台 */
-    { 30.0f,         75.0f,          30.0f,          GRIPPER_OPEN  },
+    { 55.0f,         70.0f,          60.0f,          GRIPPER_OPEN  },
     /* kEnergyUnitPlatLeft   能量单元_高台左 */
-    { 30.0f,         75.0f,          20.0f,          GRIPPER_OPEN  },
+    { 75.0f,         55.0f,          55.0f,          GRIPPER_OPEN  },
     /* kEnergyUnitPlatRight  能量单元_高台右 */
-    { 90.0f,         75.0f,          20.0f,          GRIPPER_OPEN  },
+    { 25.0f,         55.0f,          45.0f,          GRIPPER_OPEN  },
     /* kFrontLow             前方低点（夹爪保持当前开合不动） */
-    { 0.0f,          45.0f,          60.0f,          GRIPPER_UNDEF },
+    { 0.0f,          45.0f,          75.0f,          GRIPPER_UNDEF },
     /* kOutsideLift          篮外低姿起步过渡点（× 键：大臂 <50° 时先到此） */
     { 50.0f,         40.0f,          50.0f,          GRIPPER_UNDEF },
 };
