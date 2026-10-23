@@ -14,14 +14,17 @@
 /*
  * 命名关键帧（底座/肩/肘 = 用户角；夹爪 = 开/合/不变）
  *
- * 篮上高点 (180, 90, 90)：底座转到篮子一侧端部，肩竖直、肘 90——悬在
+ * ⚠️ 肘列补偿（2026/10/23，B 车）：小臂舵机装偏 +30°（原 0° 位到了 30° 位），
+ * 全表肘用户角已整体 **−30°** 补偿，负值取 0。此后肘列数值就是"含装偏
+ * 补偿"的约定值，实车微调直接改数字，不要再叠加 −30。
+ * 篮上高点 (180, 90, 60)：底座转到篮子一侧端部，肩竖直、肘 60——悬在
  *   篮子上方的过渡位，转移与回收缩都经过它。
- * 外侧高点 (90, 100, 80)：底座回初始方位（臂朝车头），肩 100、肘 80，
+ * 外侧高点 (90, 80, 50)：底座回初始方位（臂朝车头），肩 80、肘 50，
  *   与上电初始位形相近的外侧过渡位。
- * 收缩位 (0, 165, 0, 合)：底座收到工作侧端部、肩抬起、肘收拢，夹爪闭合——
+ * 收缩位 (0, 172, 0, 不变)：底座收到工作侧端部、肩抬起、肘收拢——
  *   整车运输/避让的最小包络位形。
- * 篮内点 (175, 70, 25, 开)：转移动作的篮侧端点。
- * 出篮终点 (90, 75, 40, 爪不变)：转移动作的出篮路径终点（2026/10/23 改为保持开合，
+ * 篮内点 (175, 70, 35, 开)：转移动作的篮侧端点。
+ * 出篮终点 (90, 75, 10, 爪不变)：转移动作的出篮路径终点（2026/10/23 改为保持开合，
  *   不再在终点强制合爪）。
  * 脱离两帧（power 掩码由窄到宽，这是"卸力恢复"的给力顺序，
  * 2026/10/21 实车实测确认第一段给力的是**大臂（肩）**）：
@@ -35,15 +38,15 @@
  */
 static const ArmKeyframe kKeyframes[] = {
     /* kBasketHigh  篮上高点 */
-    { 180.0f,        90.0f,          90.0f,          GRIPPER_UNDEF },
+    { 180.0f,        90.0f,          60.0f,          GRIPPER_UNDEF },
     /* kOuterHigh   外侧高点 */
-    { 90.0f,         80.0f,         100.0f,          GRIPPER_UNDEF },
+    { 90.0f,         80.0f,         50.0f,          GRIPPER_UNDEF },
     /* kRetract     收缩位 */
     { 0.0f,          172.0f,         0.0f,           GRIPPER_UNDEF },
     /* kBasketIn    篮内点 */
-    { 175.0f,        70.0f,          65.0f,          GRIPPER_OPEN  },
+    { 175.0f,        70.0f,          35.0f,          GRIPPER_OPEN  },
     /* kPickupLow   出篮终点（夹爪保持当前开合） */
-    { 90.0f,         75.0f,          40.0f,          GRIPPER_UNDEF },
+    { 90.0f,         75.0f,          10.0f,          GRIPPER_UNDEF },
     /* kEscapeShoulder 脱离1：只撑直大臂（其余关节仍卸力） */
     { kKeep,         90.0f,          kKeep,          GRIPPER_UNDEF,
       ARM_JOINT_SHOULDER },
@@ -53,24 +56,24 @@ static const ArmKeyframe kKeyframes[] = {
     /* —— 动作菜单的取放点（R1 菜单，2026/10/21 增；角度为操作手给的占位值，
      *    实车微调只改这里的数字）—— */
     /* kFrontHigh      前方高点 */
-    { 0.0f,         70.0f,          170.0f,         GRIPPER_OPEN  },
+    { 0.0f,         70.0f,          140.0f,         GRIPPER_OPEN  },
     /* kPickupSideRear  侧后拾取位 */
-    { 120.0f,         90.0f,          70.0f,          GRIPPER_OPEN  },
+    { 120.0f,         90.0f,          40.0f,          GRIPPER_OPEN  },
     /* kPickupSideFront 侧前拾取位 */
-    { 60.0f,          90.0f,          70.0f,          GRIPPER_OPEN  },
+    { 60.0f,          90.0f,          40.0f,          GRIPPER_OPEN  },
     /* kEnergyCorePlatform   能量核心_高台 */
-    { 55.0f,         70.0f,          60.0f,          GRIPPER_OPEN  },
+    { 55.0f,         70.0f,          30.0f,          GRIPPER_OPEN  },
     /* kEnergyUnitPlatLeft   能量单元_高台左 */
-    { 75.0f,         55.0f,          55.0f,          GRIPPER_OPEN  },
+    { 75.0f,         55.0f,          25.0f,          GRIPPER_OPEN  },
     /* kEnergyUnitPlatRight  能量单元_高台右 */
-    { 25.0f,         55.0f,          45.0f,          GRIPPER_OPEN  },
+    { 25.0f,         55.0f,          15.0f,          GRIPPER_OPEN  },
     /* kFrontLow             前方低点（夹爪保持当前开合不动） */
-    { 0.0f,          45.0f,          75.0f,          GRIPPER_UNDEF },
+    { 0.0f,          45.0f,          45.0f,          GRIPPER_UNDEF },
     /* kOutsideLift          篮外低姿起步过渡点（× 键：大臂 <50° 时先到此） */
-    { 50.0f,         40.0f,          50.0f,          GRIPPER_UNDEF },
+    { 50.0f,         40.0f,          20.0f,          GRIPPER_UNDEF },
     /* kOutsideTuck          篮外防扫收拢帧（tuck=true：底座保持、大臂只抬
-     * 不降到 75、小臂只折不展到 35；表值 75/35 写在下面两个字段） */
-    { kKeep,         75.0f,          35.0f,          GRIPPER_UNDEF,
+     * 不降到 75、小臂只折不展到 5（= 补偿前 35）；表值写在下面两个字段） */
+    { kKeep,         75.0f,          5.0f,           GRIPPER_UNDEF,
       ARM_JOINT_ALL, true },
 };
 
