@@ -6,6 +6,8 @@
 #define CRTC2026_ROBOTA_MOTOR_PWM_DRIVER_H
 
 #pragma once
+#include <stdbool.h>
+#include <stdint.h>
 #include "stm32f1xx_hal.h"
 #include "tim.h"
 
@@ -62,8 +64,13 @@ public:
     void toggle_enable();    // 翻转使能状态
     bool is_enabled() const; // 当前是否已使能
 
+    void set_slow_decay(bool slow);   // 衰减模式：true=慢衰减 / false=快衰减
+    void toggle_decay_mode();         // 快/慢衰减切换
+    bool is_slow_decay() const;       // 当前是否慢衰减
+
 private:
-    bool enabled_ = false;   // 上电默认未使能，init() 里会自动使能
+    bool enabled_ = false;    // 上电默认未使能，L2 控制使能
+    bool slow_decay_ = true;  // 上电默认慢衰减（2026/10/21）
 };
 #endif
 
@@ -78,6 +85,10 @@ extern "C" {
     void motor_disable(void);
     void motor_toggle_enable(void);
     uint8_t motor_is_enabled(void);   // 1 = 已使能，0 = 已关断
+
+    void motor_set_slow_decay(bool slow);   // true=慢衰减 / false=快衰减
+    void motor_toggle_decay_mode(void);     // 快/慢衰减切换（底盘模式 R1）
+    uint8_t motor_is_slow_decay(void);      // 1 = 慢衰减，0 = 快衰减
 
 #ifdef __cplusplus
 }

@@ -11,6 +11,7 @@ void ChasisControlTask::run() {
     // 按键边沿检测用（只在"按下那一刻"翻转一次，否则按住会每 10ms 翻一次）
     bool l2_last_pressed = false;   // L2：电机驱动通断
     bool l1_last_pressed = false;   // L1：三档调速循环
+    bool r1_last_pressed = false;   // R1：电机衰减模式 快/慢切换
     bool r2_last_pressed = false;   // R2：底盘/机械臂操作对象切换
     uint8_t speed_level = 1;        // 0=快速 1=中速(比例) 2=固定慢速；上电默认中速（2026/10/21）
 
@@ -52,6 +53,16 @@ void ChasisControlTask::run() {
             control_mode_toggle();
         }
         r2_last_pressed = r2_pressed;
+
+        // ---------------- R1：电机衰减模式 快/慢切换（仅底盘模式） ----------------
+        // 慢衰减（上电默认）= 一脚常高 + 反相 PWM，低速更线性、停止更柔和；
+        // 快衰减 = 单脚 PWM、另一脚低（原有行为）。机械臂模式下 R1 是
+        // 动作选择菜单，两者按模式门控互不干扰。
+        const bool r1_pressed = (btn2 & PS2_BTN_R1) != 0;
+        if (r1_pressed && !r1_last_pressed && chassis_mode) {
+            motor_toggle_decay_mode();
+        }
+        r1_last_pressed = r1_pressed;
 
         // 获取左摇杆和右摇杆数据
         uint8_t left_analog[2];
