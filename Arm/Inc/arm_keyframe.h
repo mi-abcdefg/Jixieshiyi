@@ -113,6 +113,11 @@ struct ArmKeyframe {
     float elbow_deg;           // 肘用户角
     GripperState_t gripper;    // 夹爪状态（GRIPPER_UNDEF = 保持当前开合）
     uint32_t power = ARM_JOINT_ALL;   // 本帧通电的关节（ARM_JOINT_xxx 掩码）
+    /* 防扫收拢帧标记（2026/10/21，只允许作路径**首帧**使用）。
+     * true 时本帧语义变为——底座保持当前；大臂"只抬不降"（当前低于表值
+     * 则抬到表值，已高于则保持当前）；小臂"只折不展"（当前高于表值则折
+     * 到表值，已低于则保持当前）。用于篮外起步防止臂扫到障碍。 */
+    bool tuck = false;
 };
 
 /**
@@ -123,18 +128,21 @@ enum class KeyframeId : uint8_t {
     kOuterHigh,        // 外侧高点：初始位附近过渡位
     kRetract,          // 收缩位：回收缩终点
     kBasketIn,         // 篮内点：转移动作的篮侧端点
-    kPickupLow,        // 拾取低点：转移动作的外侧端点（出篮终点，夹爪闭合）
+    kPickupLow,        // 拾取低点：转移动作的外侧端点（出篮终点，夹爪保持当前）
     kEscapeShoulder,   // 脱离1：只撑直大臂（肩），底座/肘/夹爪仍卸力
     kEscapeYaw,        // 脱离2：大臂保持，底座回中位
     /* —— 动作菜单的取放点（R1 菜单，2026/10/21 增）—— */
-    kEnergyCoreShelf,     // 能量核心_物资架 (60,70,160,开)
-    kEnergyUnitShelfLeft, // 能量单元_物资架下左 (60,60,45,开)
-    kEnergyCorePlatform,  // 能量核心_高台 (30,75,30,开)
-    kEnergyUnitPlatLeft,  // 能量单元_高台左 (30,75,20,开)
-    kEnergyUnitPlatRight, // 能量单元_高台右 (90,75,20,开)
-    kFrontLow,            // 前方低点 (0,45,60,夹爪不变)
+    kFrontHigh,           // 前方高点 (0,70,170,开)
+    kPickupSideRear,      // 侧后拾取位 (120,90,70,开)
+    kPickupSideFront,     // 侧前拾取位 (60,90,70,开)
+    kEnergyCorePlatform,  // 能量核心_高台 (55,70,60,开)
+    kEnergyUnitPlatLeft,  // 能量单元_高台左 (75,55,55,开)
+    kEnergyUnitPlatRight, // 能量单元_高台右 (25,55,45,开)
+    kFrontLow,            // 前方低点 (0,45,75,夹爪不变)
     kOutsideLift,         // 篮外低姿起步过渡点 (50,40,50,夹爪不变)：
-                          //   按 × 判篮外且大臂 <50° 时先到此再走原路线
+                          //   篮外起步且大臂 <50° 时先到此再走原路线
+    kOutsideTuck,         // 篮外防扫收拢帧（底座保持；大臂只抬不降到 75、
+                          //   小臂只折不展到 35，见 ArmKeyframe::tuck）
     kCount
 };
 

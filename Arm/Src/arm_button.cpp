@@ -49,10 +49,10 @@ const MenuSlot kMenuSlots[] = {
     { kArmBtnCircle,   ActionId::kEnergyUnitPlatRight },  // 右·右 ○ 能量单元_高台右
     { kArmBtnCross,    ActionId::kCount },                // 右·下 × 占位
     { kArmBtnSquare,   ActionId::kEnergyUnitPlatLeft },   // 右·左 □ 能量单元_高台左
-    { kArmBtnPadUp,    ActionId::kEnergyCoreShelf },      // 左·上 能量核心_物资架
-    { kArmBtnPadRight, ActionId::kCount },                // 左·右 占位
+    { kArmBtnPadUp,    ActionId::kFrontHigh },            // 左·上 前方高点
+    { kArmBtnPadRight, ActionId::kPickupSideRear },       // 左·右 侧后拾取位
     { kArmBtnPadDown,  ActionId::kFrontLow },             // 左·下 前方低点
-    { kArmBtnPadLeft,  ActionId::kEnergyUnitShelfLeft },  // 左·左 能量单元_物资架下左
+    { kArmBtnPadLeft,  ActionId::kPickupSideFront },      // 左·左 侧前拾取位
 };
 
 /** 任一摇杆轴越过打断阈值 = 操作员想手动接管 */

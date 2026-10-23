@@ -21,8 +21,8 @@
  * 收缩位 (0, 165, 0, 合)：底座收到工作侧端部、肩抬起、肘收拢，夹爪闭合——
  *   整车运输/避让的最小包络位形。
  * 篮内点 (175, 70, 25, 开)：转移动作的篮侧端点。
- * 出篮终点 (90, 75, 40, 合)：转移动作的出篮路径终点（2026/10/21 起夹爪为闭合态，
- *   只是"到位后把夹爪合上"这个终端状态；路径途中不动夹爪，免得在篮子里把方块夹住带出来）。
+ * 出篮终点 (90, 75, 40, 爪不变)：转移动作的出篮路径终点（2026/10/23 改为保持开合，
+ *   不再在终点强制合爪）。
  * 脱离两帧（power 掩码由窄到宽，这是"卸力恢复"的给力顺序，
  * 2026/10/21 实车实测确认第一段给力的是**大臂（肩）**）：
  *   先只给大臂通电、把它撑直到 90（底座/肘/夹爪仍是软的，臂能自己让位）；
@@ -42,7 +42,7 @@ static const ArmKeyframe kKeyframes[] = {
     { 0.0f,          172.0f,         0.0f,           GRIPPER_UNDEF },
     /* kBasketIn    篮内点 */
     { 175.0f,        70.0f,          50.0f,          GRIPPER_OPEN  },
-    /* kPickupLow   出篮终点（到位合爪） */
+    /* kPickupLow   出篮终点（夹爪保持当前开合） */
     { 90.0f,         75.0f,          40.0f,          GRIPPER_UNDEF },
     /* kEscapeShoulder 脱离1：只撑直大臂（其余关节仍卸力） */
     { kKeep,         90.0f,          kKeep,          GRIPPER_UNDEF,
@@ -54,8 +54,10 @@ static const ArmKeyframe kKeyframes[] = {
      *    实车微调只改这里的数字）—— */
     /* kFrontHigh      前方高点 */
     { 0.0f,         70.0f,          170.0f,         GRIPPER_OPEN  },
-    /* kEnergyUnitShelfLeft  能量单元_物资架下左 */
+    /* kPickupSideRear  侧后拾取位 */
     { 120.0f,         90.0f,          70.0f,          GRIPPER_OPEN  },
+    /* kPickupSideFront 侧前拾取位 */
+    { 60.0f,          90.0f,          70.0f,          GRIPPER_OPEN  },
     /* kEnergyCorePlatform   能量核心_高台 */
     { 55.0f,         70.0f,          60.0f,          GRIPPER_OPEN  },
     /* kEnergyUnitPlatLeft   能量单元_高台左 */
@@ -66,6 +68,10 @@ static const ArmKeyframe kKeyframes[] = {
     { 0.0f,          45.0f,          75.0f,          GRIPPER_UNDEF },
     /* kOutsideLift          篮外低姿起步过渡点（× 键：大臂 <50° 时先到此） */
     { 50.0f,         40.0f,          50.0f,          GRIPPER_UNDEF },
+    /* kOutsideTuck          篮外防扫收拢帧（tuck=true：底座保持、大臂只抬
+     * 不降到 75、小臂只折不展到 35；表值 75/35 写在下面两个字段） */
+    { kKeep,         75.0f,          35.0f,          GRIPPER_UNDEF,
+      ARM_JOINT_ALL, true },
 };
 
 static_assert(sizeof(kKeyframes) / sizeof(kKeyframes[0]) ==
