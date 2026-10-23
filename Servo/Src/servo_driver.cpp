@@ -63,9 +63,20 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
 #define SHOULDER_REVERSED     true
 #endif
 
+/* 夹爪舵机安装方向按车分套（2026/10/23 B 车实测：装反）：两车互为镜像。
+ * reversed 翻转的是**整条通道**——○ 两档 / 动作关键帧的开合 / 末端抖动 /
+ * 左摇杆点动一起镜像物理方向；开/合两档角（gripper.h）两车共用，
+ * 翻转后物理开合自动对齐，上层无需改动。 */
+#if 1    /* ===== A 车配置 ===== */
+#define GRIPPER_REVERSED      false
+#else    /* ===== B 车配置 ===== */
+#define GRIPPER_REVERSED      true
+#endif
+
     /* [0] 夹爪（SERVO_GRIPPER，PB9/TIM4_CH4，SG90）
      * 限位为舵机全行程 [0°,180°]：曾用 [15°,165°] 边距，闭合位够不到。
-     * 开/合两档命令角见 gripper.h（60/120，占位待标定），90° 为中位脉宽。 */
+     * 开/合两档命令角见 gripper.h（60/120，占位待标定），90° 为中位脉宽。
+     * 安装方向按车分套（见上方 GRIPPER_REVERSED）：A 车 false / B 车 true。 */
     {
         TIM_CHANNEL_4,
         500,
@@ -73,7 +84,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
         0.0f,
         180.0f,
         90.0f,
-        false
+        GRIPPER_REVERSED
     },
 
     /* [1] 肩关节：第一段连杆，臂长 11cm（SERVO_LINK_1，PB7/TIM4_CH2，SG90）。
