@@ -12,7 +12,7 @@ void ChasisControlTask::run() {
     bool l2_last_pressed = false;   // L2：电机驱动通断
     bool l1_last_pressed = false;   // L1：三档调速循环
     bool r2_last_pressed = false;   // R2：底盘/机械臂操作对象切换
-    uint8_t speed_level = 0;        // 0=快速 1=中速(比例) 2=固定慢速；上电默认快速
+    uint8_t speed_level = 1;        // 0=快速 1=中速(比例) 2=固定慢速；上电默认中速（2026/10/21）
 
     // 十字键定距平移状态（仅底盘模式）
     bool pad_was_active = false;
@@ -67,9 +67,11 @@ void ChasisControlTask::run() {
         // 全工程的 vx/vy 正负都以这里为准（十字键定距平移必须同号，见下面的 pad_*_cmd）。
         // 物理上是"上推=前进"还是"上推=后退"，取决于电机接线与 MOTOR_INVERT_xx（已按实车修正），
         // 不要在别处再定义一套方向。
-        float vx = (left_analog[1] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 前进/后退速度
-        float vy = (left_analog[0] - 128) / 128.0f * MECANUM_MAX_SPEED;          // 左/右速度
-        float omega = (right_analog[0] - 128) / 128.0f * MECANUM_MAX_OMEGA_RADPS; // 旋转角速度
+        // 分母用 127：满杆（raw 255）恰好 = 100% 占空比（2026/10/21 明确
+        // "快速档最大速度 = 最大占空比"）。
+        float vx = (left_analog[1] - 128) / 127.0f * MECANUM_MAX_SPEED;          // 前进/后退速度
+        float vy = (left_analog[0] - 128) / 127.0f * MECANUM_MAX_SPEED;          // 左/右速度
+        float omega = (right_analog[0] - 128) / 127.0f * MECANUM_MAX_OMEGA_RADPS; // 旋转角速度
 
         // 原地旋转方向标定（B 车实测反向）：只翻转底盘旋转，见 chasis_control_task.h
         if (CHASIS_OMEGA_INVERT) {

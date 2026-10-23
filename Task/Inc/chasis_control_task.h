@@ -23,7 +23,7 @@
  *   平移 0.7 × 2.0 m/s = 1.4 m/s、旋转 0.7 × 满量程角速度 —— 即 70% 占空比。
  * 阻力前馈现在是**起步下限**而不是叠加（见 mecanum_kinematic.h），
  * 所以 70% 就是这一档的实际占空比，不会被前馈顶到 100%。 */
-#define CHASIS_FIXED_SLOW_SPEED_RATIO   0.7f   // 平移 0.7 × 2.0 = 1.4 m/s（70% 占空比）
+#define CHASIS_FIXED_SLOW_SPEED_RATIO   0.6f   // 平移 0.6 × 满量程 = 60% 占空比（2026/10/21 稍调慢）
 #define CHASIS_FIXED_SLOW_OMEGA_RATIO   0.7f   // 旋转 0.7 × 满量程角速度
 
 /* ------------------------ 原地旋转方向翻转 ------------------------

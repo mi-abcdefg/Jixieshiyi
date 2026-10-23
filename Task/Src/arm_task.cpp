@@ -35,7 +35,9 @@
 #include "control_mode.h"
 #include "arm_action.h"
 #include "arm_button.h"
+#include "arm_control.h"
 #include "arm_endpoint.h"
+#include "arm_keyframe.h"
 #include "arm_manual.h"
 #include "arm_shake.h"
 #include "gripper.h"
@@ -98,6 +100,23 @@ void ArmTask::run() {
     arm_action_init();
     arm_button_init();
     arm_shake_init();
+
+    /* 上电默认位形 = 最小收缩位（RETRACT 关键帧）：底座收到工作侧端、
+     * 大臂抬起收拢、小臂收拢、夹爪闭合。经关键帧换算下发（底座 A/B 车
+     * 镜像自动适配），舵机以自身速度直接摆到位。 */
+    const ArmKeyframe retract = get_keyframe(KeyframeId::kRetract);
+    ArmPose_t boot;
+    if (arm_get_pose(&boot)) {
+        boot.base_z_deg = arm_clamp_angle(SERVO_BASE_Z,
+                                          base_user_to_cmd(retract.base_deg));
+        boot.link1_deg = arm_clamp_angle(SERVO_LINK_1,
+                                         link1_user_to_cmd(retract.shoulder_deg));
+        boot.link2_deg = arm_clamp_angle(SERVO_LINK_2,
+                                         link2_user_to_cmd(retract.elbow_deg));
+        (void)arm_set_pose_masked(&boot, ARM_JOINT_BASE_Z | ARM_JOINT_SHOULDER |
+                                         ARM_JOINT_ELBOW);
+    }
+    (void)gripper_set(GRIPPER_CLOSE);
 
     while (1) {
         const uint32_t now_ms = osKernelSysTick();
