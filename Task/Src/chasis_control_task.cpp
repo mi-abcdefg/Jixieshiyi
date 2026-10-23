@@ -168,10 +168,11 @@ void ChasisControlTask::run() {
 
         // 运动学解算：得到四个轮子的线速度 [m/s]。
         // 档位缩放交给解算层（throttle_scale），**不能**再乘在解算之后的指令上：
-        // 那样会把"起步下限（阻力前馈）"一起缩小（0.8×60% = 48%），
+        // 那样会把"起步下限（阻力前馈）"一起缩小（0.4×起步占空比），
         // 中速档小油门又会出现"推了不动"。固定慢速档（==2）的速度已在上面
         // 直接按档位速度生成，所以它的 throttle 是 1.0。
-        const float throttle = (speed_level == 1U) ? CHASIS_SLOW_MODE_SCALE : 1.0f;
+        const float throttle = (speed_level == 0U) ? CHASIS_FAST_MODE_SCALE :
+                               (speed_level == 1U) ? CHASIS_SLOW_MODE_SCALE : 1.0f;
 
         float wheel_speeds[4];
         mecanum_get_wheel_speeds(vx, vy, omega, throttle, wheel_speeds);
