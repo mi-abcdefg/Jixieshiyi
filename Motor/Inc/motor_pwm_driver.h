@@ -39,7 +39,7 @@
 #define MOTOR_DRV_DISABLE_LEVEL   GPIO_PIN_RESET
 
 // 电机接线方向修正（按车分套，#if 切换：1 = A 车，0 = B 车）
-#if 0    /* ===== A 车配置：后右轮翻转 ===== */
+#if 1    /* ===== A 车配置：后右轮翻转 ===== */
 #define MOTOR_INVERT_FL           0
 #define MOTOR_INVERT_FR           0
 #define MOTOR_INVERT_BL           0
