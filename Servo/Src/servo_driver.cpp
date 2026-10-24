@@ -67,7 +67,7 @@ static const ServoConfig_t servo_config[SERVO_COUNT] =
  * reversed 翻转的是**整条通道**——○ 两档 / 动作关键帧的开合 / 末端抖动 /
  * 左摇杆点动一起镜像物理方向；开/合两档角（gripper.h）两车共用，
  * 翻转后物理开合自动对齐，上层无需改动。 */
-#if 1    /* ===== A 车配置 ===== */
+#if 0    /* ===== A 车配置 ===== */
 #define GRIPPER_REVERSED      false
 #else    /* ===== B 车配置 ===== */
 #define GRIPPER_REVERSED      true
